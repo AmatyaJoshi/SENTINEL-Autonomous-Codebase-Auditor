@@ -69,7 +69,9 @@ def test_mode_override(tmp_path: Path) -> None:
 
 def test_effective_model_falls_back_to_openrouter_when_only_that_key_exists(tmp_path: Path) -> None:
     s = Settings(_env_file=None, work_dir=tmp_path, openrouter_api_key="k")  # type: ignore[call-arg,arg-type]
-    assert s.effective_model("primary").startswith("openrouter/")
+    assert (
+        s.effective_model("primary").startswith("openrouter/") and len(s.model_pool("primary")) >= 4
+    )
     assert s.effective_model("fallback") == "openrouter/free"
     assert (
         not s.has_key_for("openai/gpt-5")

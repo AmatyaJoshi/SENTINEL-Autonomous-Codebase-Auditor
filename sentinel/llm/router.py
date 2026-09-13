@@ -377,9 +377,8 @@ class LLMRouter:
                         last_exc = e
                         self._rotate(tier, candidate, f"{type(e).__name__}: {e}")
                 if resp is None:
-                    raise RuntimeError(
-                        f"all models failed for tier {tier}: {last_exc}"
-                    ) from last_exc
+                    assert last_exc is not None
+                    raise last_exc  # keep the original type (LookupError, RateLimitError, ...)
                 s.set_attribute("llm.model", resp.model or model)
                 s.set_attribute("llm.cost_usd", resp.cost_usd)
                 s.set_attribute("llm.tokens_in", resp.tokens_in)

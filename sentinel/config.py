@@ -125,9 +125,26 @@ class Settings(BaseSettings):
         "deepseek/": "deepseek_api_key",
         "openrouter/": "openrouter_api_key",
     }
+    # User-curated free OpenRouter rotation (largest/strongest first). Used when only an
+    # OpenRouter key is configured, or when the configured models' providers have no key.
     OPENROUTER_DEFAULTS: ClassVar[dict[str, str]] = {
-        "primary": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-        "cheap": "openrouter/google/gemma-4-26b-a4b-it:free",
+        "primary": ",".join(
+            [
+                "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+                "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+                "openrouter/poolside/laguna-s-2.1:free",
+                "openrouter/thinkingmachines/inkling-small:free",
+                "openrouter/inclusionai/ling-3.0-flash-fin:free",
+            ]
+        ),
+        "cheap": ",".join(
+            [
+                "openrouter/nvidia/nemotron-3.5-lightning:free",
+                "openrouter/google/gemma-4-26b-a4b-it:free",
+                "openrouter/poolside/laguna-xs-2.1:free",
+                "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+            ]
+        ),
         "fallback": "openrouter/free",
     }
 
@@ -154,7 +171,7 @@ class Settings(BaseSettings):
         if usable:
             return usable
         if self.openrouter_api_key is not None:
-            return [self.OPENROUTER_DEFAULTS[tier]]
+            return [m for m in self.OPENROUTER_DEFAULTS[tier].split(",") if m]
         if self.deepseek_api_key is not None:
             return ["deepseek/deepseek-chat"]
         return candidates[:1] or [configured]
