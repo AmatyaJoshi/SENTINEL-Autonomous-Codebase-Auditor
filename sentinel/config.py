@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-large"
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    voyage_api_key: SecretStr | None = None
     llm_cache_enabled: bool = True
 
     # github

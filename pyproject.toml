@@ -26,6 +26,14 @@ dependencies = [
     "docker>=7.1",
     "fastapi>=0.111",
     "uvicorn>=0.30",
+    "tree-sitter>=0.25,<0.26",  # 0.26.0 access-violates on Windows during node access
+    "tree-sitter-python>=0.25.0",
+    "tree-sitter-typescript>=0.23.2",
+    "tree-sitter-javascript>=0.25.0",
+    "bandit>=1.9.4",
+    "ruff>=0.16.7",
+    "mypy>=2.3.1",
+    "semgrep>=1.177.0 ; sys_platform != 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -39,8 +47,6 @@ dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "hypothesis>=6.100",
-    "ruff>=0.5",
-    "mypy>=1.10",
     "types-PyYAML",
     "types-docker",
 ]
@@ -55,7 +61,7 @@ packages = ["sentinel"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["*.md"]
+extend-exclude = ["*.md", "tests/fixtures"]
 src = ["."]
 
 [tool.ruff.lint]
@@ -78,5 +84,6 @@ ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["fixtures", ".venv", "node_modules"]
 asyncio_mode = "auto"
 addopts = "-q"

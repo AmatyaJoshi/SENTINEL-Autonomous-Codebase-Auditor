@@ -33,7 +33,7 @@ def test_cli_version() -> None:
 
 @pytest.mark.parametrize(
     "args",
-    [["audit", "https://github.com/x/y"], ["index", "."], ["search", "auth token"], ["bench"]],
+    [["audit", "https://github.com/x/y"], ["bench"], ["replay", "r1"], ["serve"]],
 )
 def test_unimplemented_commands_exit_nonzero_loudly(args: list[str]) -> None:
     result = runner.invoke(app, args)
