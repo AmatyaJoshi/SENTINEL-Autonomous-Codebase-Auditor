@@ -286,6 +286,7 @@ class LLMRouter:
         self.total_cost_usd = 0.0
         self.total_calls = 0
         self._warned_substitution = False
+        self._pool_offset: dict[str, int] = {}
         self._cache = (
             _ResponseCache(settings.work_dir / "cache" / "llm.sqlite")
             if settings.llm_cache_enabled and backend is None
@@ -293,16 +294,33 @@ class LLMRouter:
         )
 
     def model_for(self, tier: Tier) -> str:
+        return self.model_pool(tier)[0]
+
+    def model_pool(self, tier: Tier) -> list[str]:
+        """Rotation order for a tier: the last model that worked comes first."""
+        key = "cheap" if tier == "cheap" else "primary"
+        pool = self.settings.model_pool(key)
         configured = self.settings.cheap_model if tier == "cheap" else self.settings.primary_model
-        model = self.settings.effective_model("cheap" if tier == "cheap" else "primary")
-        if model != configured and not self._warned_substitution:
+        if pool[0] not in configured and not self._warned_substitution:
             self._warned_substitution = True
             logging.getLogger("sentinel.llm").warning(
                 "no API key for %s; using %s instead (set SENTINEL_PRIMARY_MODEL/SENTINEL_CHEAP_MODEL)",
                 configured,
-                model,
+                pool[0],
             )
-        return model
+        off = self._pool_offset.get(key, 0) % len(pool)
+        return pool[off:] + pool[:off]
+
+    def _rotate(self, tier: Tier, failed_model: str, reason: str) -> None:
+        key = "cheap" if tier == "cheap" else "primary"
+        pool = self.settings.model_pool(key)
+        if len(pool) < 2:
+            return
+        nxt = (pool.index(failed_model) + 1) % len(pool) if failed_model in pool else 0
+        self._pool_offset[key] = nxt
+        logging.getLogger("sentinel.llm").warning(
+            "model %s failed (%s); rotating to %s", failed_model, reason[:120], pool[nxt]
+        )
 
     # ------------------------------------------------------------------ core call
     def _call(
@@ -317,7 +335,8 @@ class LLMRouter:
         temperature: float = 0.0,
         max_tokens: int = 4096,
     ) -> RawResponse:
-        model = self.model_for(tier)
+        pool = self.model_pool(tier)
+        model = pool[0]
         key = hashlib.sha256(
             json.dumps(
                 {
@@ -340,14 +359,27 @@ class LLMRouter:
             if hasattr(self.backend, "current_prompt"):
                 self.backend.current_prompt = prompt_name or "unknown"
             with span("sentinel.llm", node=prompt_name) as s:
-                resp = self.backend.complete(
-                    model,
-                    messages,
-                    response_schema=response_schema,
-                    tools=tools,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
+                resp = None
+                last_exc: Exception | None = None
+                for candidate in pool:
+                    try:
+                        resp = self.backend.complete(
+                            candidate,
+                            messages,
+                            response_schema=response_schema,
+                            tools=tools,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                        )
+                        model = candidate
+                        break
+                    except Exception as e:  # noqa: BLE001 - rate limits, outages, bad params
+                        last_exc = e
+                        self._rotate(tier, candidate, f"{type(e).__name__}: {e}")
+                if resp is None:
+                    raise RuntimeError(
+                        f"all models failed for tier {tier}: {last_exc}"
+                    ) from last_exc
                 s.set_attribute("llm.model", resp.model or model)
                 s.set_attribute("llm.cost_usd", resp.cost_usd)
                 s.set_attribute("llm.tokens_in", resp.tokens_in)

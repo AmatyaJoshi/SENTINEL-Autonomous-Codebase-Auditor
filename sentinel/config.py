@@ -140,20 +140,27 @@ class Settings(BaseSettings):
             return self.openai_api_key is not None
         return True  # ollama/, huggingface/, custom endpoints: no key needed here
 
-    def effective_model(self, tier: str) -> str:
-        """Configured model for the tier, or an OpenRouter default when only that key exists."""
+    def model_pool(self, tier: str) -> list[str]:
+        """Models for a tier, in rotation order. Settings accept comma-separated lists, e.g.
+        SENTINEL_PRIMARY_MODEL=openrouter/a:free,openrouter/b:free. Keyless providers are
+        dropped; if nothing usable remains, fall back to OpenRouter/DeepSeek defaults."""
         configured = {
             "primary": self.primary_model,
             "cheap": self.cheap_model,
             "fallback": self.fallback_model,
         }[tier]
-        if self.has_key_for(configured):
-            return configured
+        candidates = [m.strip() for m in configured.split(",") if m.strip()]
+        usable = [m for m in candidates if self.has_key_for(m)]
+        if usable:
+            return usable
         if self.openrouter_api_key is not None:
-            return self.OPENROUTER_DEFAULTS[tier]
+            return [self.OPENROUTER_DEFAULTS[tier]]
         if self.deepseek_api_key is not None:
-            return "deepseek/deepseek-chat"
-        return configured
+            return ["deepseek/deepseek-chat"]
+        return candidates[:1] or [configured]
+
+    def effective_model(self, tier: str) -> str:
+        return self.model_pool(tier)[0]
 
     def llm_configured(self) -> bool:
         return any(
