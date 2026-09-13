@@ -3,7 +3,7 @@
 # docker-compose); this image never executes audited code.
 
 # ---- stage 1: dashboard ---------------------------------------------------------------------
-FROM node:20-alpine AS dashboard
+FROM node:26-alpine AS dashboard
 WORKDIR /app/dashboard
 COPY dashboard/package.json dashboard/package-lock.json ./
 RUN npm ci --no-audit --no-fund
