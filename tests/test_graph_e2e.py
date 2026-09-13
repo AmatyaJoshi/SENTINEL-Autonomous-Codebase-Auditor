@@ -229,7 +229,7 @@ def test_api_end_to_end_with_roles(tmp_path: Path) -> None:
 
     with c.stream("GET", f"/api/v1/runs/{run_id}/events", headers={"X-API-Key": "v"}) as resp:
         assert resp.status_code == 200
-        text = "".join(resp.iter_text())
+        text = "".join(resp.iter_text()).replace("\r\n", "\n")
     assert "event: node.start" in text and "event: run.end" in text and "id: 1\n" in text
 
     assert c.get("/api/v1/settings", headers={"X-API-Key": "o"}).status_code == 403

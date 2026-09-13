@@ -50,8 +50,11 @@ def _slug(url: str) -> str:
 
 def clone_or_update(url: str, work_dir: Path, sha: str | None = None) -> tuple[Path, str]:
     """Clone into work_dir/repos/<slug>; fetch if present; checkout `sha` if given."""
+    import os
+
     from git import Repo
 
+    os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")  # never hang on a credential prompt
     dest = work_dir / "repos" / _slug(url)
     if (dest / ".git").exists():
         repo = Repo(dest)

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Role = Literal["viewer", "operator", "admin"]
 
@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     deepseek_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
+    # "schema": provider-enforced JSON schema; "prompt": schema embedded in the prompt (free/open models);
+    # "auto": prompt mode for openrouter/ and ollama/ models, schema otherwise
+    structured_output_mode: Literal["auto", "schema", "prompt"] = "auto"
     voyage_api_key: SecretStr | None = None
     llm_cache_enabled: bool = True
 
@@ -87,8 +91,10 @@ class Settings(BaseSettings):
     # api
     api_host: str = "127.0.0.1"
     api_port: int = 8000
-    api_keys: list[ApiKey] = Field(default_factory=list)
-    api_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    api_keys: Annotated[list[ApiKey], NoDecode] = Field(default_factory=list)
+    api_cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:5173"]
+    )
     api_rate_limit_per_minute: int = 120
     max_concurrent_runs: int = 2
 
@@ -116,7 +122,12 @@ class Settings(BaseSettings):
     def llm_configured(self) -> bool:
         return any(
             k is not None
-            for k in (self.anthropic_api_key, self.openai_api_key, self.deepseek_api_key)
+            for k in (
+                self.anthropic_api_key,
+                self.openai_api_key,
+                self.deepseek_api_key,
+                self.openrouter_api_key,
+            )
         )
 
     def redacted(self) -> dict[str, Any]:

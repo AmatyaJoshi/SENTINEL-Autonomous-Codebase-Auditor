@@ -102,6 +102,10 @@ class LiteLLMBackend:
             os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key.get_secret_value())
         if settings.deepseek_api_key:
             os.environ.setdefault("DEEPSEEK_API_KEY", settings.deepseek_api_key.get_secret_value())
+        if settings.openrouter_api_key:
+            os.environ.setdefault(
+                "OPENROUTER_API_KEY", settings.openrouter_api_key.get_secret_value()
+            )
         self._fallback = settings.fallback_model
 
     def complete(
@@ -372,10 +376,16 @@ class LLMRouter:
         max_attempts: int = 2,
     ) -> tuple[T, RawResponse]:
         """Ask for JSON matching `schema`; on validation failure, feed the error back once."""
+        prompt_mode = self._prompt_mode(self.model_for(tier))
         messages: list[Message] = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.extend(history or [])
+        if prompt_mode:
+            user = (
+                f"{user}\n\nRespond with ONLY a JSON object (no prose, no code fences) that validates "
+                f"against this JSON Schema:\n{json.dumps(schema.model_json_schema())}"
+            )
         messages.append({"role": "user", "content": user})
         last_err: Exception | None = None
         resp: RawResponse | None = None
@@ -383,7 +393,7 @@ class LLMRouter:
             resp = self._call(
                 messages,
                 tier=tier,
-                response_schema=schema,
+                response_schema=None if prompt_mode else schema,
                 tools=None,
                 prompt_name=prompt_name,
                 prompt_version=prompt_version,
@@ -401,6 +411,12 @@ class LLMRouter:
                     }
                 )
         raise ValueError(f"LLM output failed {schema.__name__} validation: {last_err}")
+
+    def _prompt_mode(self, model: str) -> bool:
+        mode = self.settings.structured_output_mode
+        if mode == "auto":
+            return model.startswith(("openrouter/", "ollama/", "ollama_chat/", "huggingface/"))
+        return mode == "prompt"
 
     def chat(
         self,

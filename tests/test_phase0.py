@@ -31,14 +31,21 @@ def test_cli_version() -> None:
     assert "sentinel 0.1.0" in result.stdout
 
 
-@pytest.mark.parametrize(
-    "args",
-    [["audit", "https://github.com/x/y"], ["bench"], ["replay", "r1"], ["serve"]],
-)
-def test_unimplemented_commands_exit_nonzero_loudly(args: list[str]) -> None:
-    result = runner.invoke(app, args)
-    assert result.exit_code == 2
-    assert "Phase" in result.stdout
+def test_all_commands_have_help() -> None:
+    for cmd in (
+        "audit",
+        "bench",
+        "replay",
+        "serve",
+        "index",
+        "search",
+        "analyze",
+        "ingest",
+        "symbol",
+        "runs",
+    ):
+        result = runner.invoke(app, [cmd, "--help"])
+        assert result.exit_code == 0, (cmd, result.output)
 
 
 def test_settings_defaults_keep_sandbox_isolation(monkeypatch: pytest.MonkeyPatch) -> None:

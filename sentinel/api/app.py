@@ -75,7 +75,7 @@ class Decision(BaseModel):
 
 
 def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI:
-    engine = get_engine(settings)
+    engine = manager.engine if manager is not None else get_engine(settings)
     mgr = manager or RunManager(settings, engine)
     limiter = _RateLimiter(settings.api_rate_limit_per_minute)
     open_mode = not settings.api_keys
