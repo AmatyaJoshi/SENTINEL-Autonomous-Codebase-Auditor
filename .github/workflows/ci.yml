@@ -1,0 +1,24 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --all-groups
+      - name: lint
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: type-check
+        run: uv run mypy
+      - name: unit tests
+        run: uv run pytest
+      - name: cli smoke
+        run: uv run sentinel --help
