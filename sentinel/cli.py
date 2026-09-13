@@ -287,6 +287,15 @@ def _print_run_summary(mgr, run_id: str) -> None:  # type: ignore[no-untyped-def
                 f"{f.confidence:.2f}",
             )
         console.print(ft)
+    report = settings_path(mgr.settings) / "runs" / run_id / "report.json"
+    if report.exists():
+        import json as _json
+
+        errors = _json.loads(report.read_text(encoding="utf-8")).get("errors", [])
+        for e in errors[:8]:
+            err.print(f"[yellow]error:[/] {e[:300]}")
+        if len(errors) > 8:
+            err.print(f"[yellow]... {len(errors) - 8} more errors in report.json[/]")
     console.print(f"report: {settings_path(mgr.settings) / 'runs' / run_id / 'report.html'}")
 
 

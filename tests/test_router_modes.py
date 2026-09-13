@@ -65,3 +65,19 @@ def test_mode_override(tmp_path: Path) -> None:
     router, seen = _router(tmp_path, "anthropic/claude-sonnet-5", mode="prompt")
     router.structured(Out, "give n")
     assert seen[0]["schema"] is None
+
+
+def test_effective_model_falls_back_to_openrouter_when_only_that_key_exists(tmp_path: Path) -> None:
+    s = Settings(_env_file=None, work_dir=tmp_path, openrouter_api_key="k")  # type: ignore[call-arg,arg-type]
+    assert s.effective_model("primary").startswith("openrouter/")
+    assert s.effective_model("fallback") == "openrouter/free"
+    assert (
+        not s.has_key_for("openai/gpt-5")
+        and s.has_key_for("openrouter/free")
+        and s.has_key_for("ollama/x")
+    )
+    s2 = Settings(_env_file=None, work_dir=tmp_path, anthropic_api_key="k")  # type: ignore[call-arg,arg-type]
+    assert s2.effective_model("primary") == "anthropic/claude-sonnet-5"
+    assert (
+        s2.effective_model("fallback") == "openai/gpt-5"
+    )  # configured but keyless → router disables it

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr, field_validator
@@ -118,6 +118,42 @@ class Settings(BaseSettings):
                 return json.loads(v)
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+
+    PROVIDER_KEYS: ClassVar[dict[str, str]] = {
+        "anthropic/": "anthropic_api_key",
+        "openai/": "openai_api_key",
+        "deepseek/": "deepseek_api_key",
+        "openrouter/": "openrouter_api_key",
+    }
+    OPENROUTER_DEFAULTS: ClassVar[dict[str, str]] = {
+        "primary": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "cheap": "openrouter/google/gemma-4-26b-a4b-it:free",
+        "fallback": "openrouter/free",
+    }
+
+    def has_key_for(self, model: str) -> bool:
+        """True if the provider prefix of `model` has a configured key (or needs none, e.g. ollama)."""
+        for prefix, attr in self.PROVIDER_KEYS.items():
+            if model.startswith(prefix):
+                return getattr(self, attr) is not None
+        if "/" not in model:  # bare OpenAI-style id
+            return self.openai_api_key is not None
+        return True  # ollama/, huggingface/, custom endpoints: no key needed here
+
+    def effective_model(self, tier: str) -> str:
+        """Configured model for the tier, or an OpenRouter default when only that key exists."""
+        configured = {
+            "primary": self.primary_model,
+            "cheap": self.cheap_model,
+            "fallback": self.fallback_model,
+        }[tier]
+        if self.has_key_for(configured):
+            return configured
+        if self.openrouter_api_key is not None:
+            return self.OPENROUTER_DEFAULTS[tier]
+        if self.deepseek_api_key is not None:
+            return "deepseek/deepseek-chat"
+        return configured
 
     def llm_configured(self) -> bool:
         return any(

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -106,7 +107,8 @@ class LiteLLMBackend:
             os.environ.setdefault(
                 "OPENROUTER_API_KEY", settings.openrouter_api_key.get_secret_value()
             )
-        self._fallback = settings.fallback_model
+        fb = settings.effective_model("fallback")
+        self._fallback = fb if settings.has_key_for(fb) else None
 
     def complete(
         self,
@@ -121,6 +123,7 @@ class LiteLLMBackend:
         import litellm
 
         litellm.suppress_debug_info = True
+        litellm.drop_params = True  # e.g. reasoning models reject temperature=0
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": list(messages),
@@ -282,6 +285,7 @@ class LLMRouter:
         self.on_call = on_call
         self.total_cost_usd = 0.0
         self.total_calls = 0
+        self._warned_substitution = False
         self._cache = (
             _ResponseCache(settings.work_dir / "cache" / "llm.sqlite")
             if settings.llm_cache_enabled and backend is None
@@ -289,7 +293,16 @@ class LLMRouter:
         )
 
     def model_for(self, tier: Tier) -> str:
-        return self.settings.cheap_model if tier == "cheap" else self.settings.primary_model
+        configured = self.settings.cheap_model if tier == "cheap" else self.settings.primary_model
+        model = self.settings.effective_model("cheap" if tier == "cheap" else "primary")
+        if model != configured and not self._warned_substitution:
+            self._warned_substitution = True
+            logging.getLogger("sentinel.llm").warning(
+                "no API key for %s; using %s instead (set SENTINEL_PRIMARY_MODEL/SENTINEL_CHEAP_MODEL)",
+                configured,
+                model,
+            )
+        return model
 
     # ------------------------------------------------------------------ core call
     def _call(
