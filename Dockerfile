@@ -11,7 +11,7 @@ COPY dashboard/ ./
 RUN npm run build
 
 # ---- stage 2: python deps -------------------------------------------------------------------
-FROM python:3.12-slim AS deps
+FROM python:3.14-slim AS deps
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONDONTWRITEBYTECODE=1
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -22,7 +22,7 @@ COPY sentinel/__init__.py sentinel/__init__.py
 RUN uv sync --frozen --no-dev --extra postgres --no-install-project
 
 # ---- stage 3: runtime -----------------------------------------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     SENTINEL_WORK_DIR=/data SENTINEL_API_HOST=0.0.0.0 SENTINEL_LOG_JSON=1
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl \
