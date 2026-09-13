@@ -28,7 +28,7 @@ jobs:
           SENTINEL_OPENAI_API_KEY: ${{ secrets.SENTINEL_OPENAI_API_KEY }}
           SENTINEL_WORK_DIR: ${{ runner.temp }}/sentinel
         run: uv run python bench/run_bench.py --suite small
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: bench-report
