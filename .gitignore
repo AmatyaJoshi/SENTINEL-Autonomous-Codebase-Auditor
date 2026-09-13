@@ -13,3 +13,12 @@ sentinel.db
 *.sqlite
 .hypothesis/
 runs/
+
+# dashboard (frontend)
+dashboard/node_modules
+dashboard/dist
+bench/out/
+training/data/
+training/eval.json
+*.sarif
+out.sarif

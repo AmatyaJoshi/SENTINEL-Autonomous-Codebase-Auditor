@@ -4,21 +4,36 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   small-suite:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Requires an LLM key; the job is skipped (not failed) when the secret is absent.
+    if: ${{ vars.BENCH_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv python install 3.12
       - run: uv sync --all-groups
-      - name: benchmark (small suite)
+      - name: build sandbox base images
+        run: |
+          docker build -f sentinel/sandbox/images/Dockerfile.python -t sentinel-base-python:3.12 sentinel/sandbox/images
+          docker build -f sentinel/sandbox/images/Dockerfile.node -t sentinel-base-node:20 sentinel/sandbox/images
+      - name: benchmark (small suite, all four arms)
         env:
           SENTINEL_ANTHROPIC_API_KEY: ${{ secrets.SENTINEL_ANTHROPIC_API_KEY }}
+          SENTINEL_OPENAI_API_KEY: ${{ secrets.SENTINEL_OPENAI_API_KEY }}
+          SENTINEL_WORK_DIR: ${{ runner.temp }}/sentinel
         run: uv run python bench/run_bench.py --suite small
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bench-report
-          path: bench/out/
+          path: |
+            bench/out/report.html
+            bench/out/report.json
+            bench/out/manifest.json
+            bench/RESULTS.md

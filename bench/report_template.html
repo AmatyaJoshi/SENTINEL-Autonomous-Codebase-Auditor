@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentinel benchmark report</title>
+<style>
+:root{--bg:#0b1020;--card:#121a2e;--line:#22304f;--fg:#e6ebf5;--muted:#8b9ac2;--a:#8b5cf6;--b:#60a5fa;--c:#34d399;--d:#fbbf24;--bad:#fb7185}
+@media (prefers-color-scheme:light){:root{--bg:#f6f7fb;--card:#fff;--line:#e3e7f0;--fg:#111827;--muted:#64708a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,sans-serif;padding:24px 16px}
+main{max-width:1100px;margin:auto}h1{font-size:22px;margin:0}h2{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:28px 0 10px}
+.meta{color:var(--muted);font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}td:first-child,th:first-child{text-align:left}
+.bars{display:flex;gap:18px;align-items:flex-end;height:180px;padding:8px 0}.g{flex:1;display:flex;gap:4px;align-items:flex-end;height:100%;position:relative}
+.g i{flex:1;border-radius:6px 6px 0 0;min-height:2px;transition:height .6s ease}.g span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:28px}.legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
+.hl{border-color:var(--a);box-shadow:0 0 0 1px var(--a) inset}.badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#8b5cf633;font-size:11px}
+.heat td{text-align:center}.heat td[data-v]{background:color-mix(in srgb,var(--a) calc(var(--p)*1%),transparent)}
+</style></head><body><main id="app"></main>
+<script id="s" type="application/json">{{SUMMARY_JSON}}</script>
+<script>
+const S=JSON.parse(document.getElementById('s').textContent),A=S.arms||{},esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const pct=x=>x==null?'–':(x*100).toFixed(1)+'%';const order=['analyzers','single_shot','no_triage','full'].filter(a=>A[a]);
+const colors={precision:'var(--a)',recall:'var(--b)',f1:'var(--c)'};
+let h=`<h1>Sentinel benchmark — ${esc(S.suite)} suite</h1><div class="meta">${esc(S.date)} · commit <code>${esc((S.commit||'').slice(0,10))}</code> · ${S.instances} injected bugs · seed ${esc(S.seed)} · models ${esc(S.models?.primary)} / ${esc(S.models?.cheap)} · ${S.wall_clock_s??'-'}s total</div>`;
+h+=`<h2>Headline</h2><div class="grid">`+order.map(a=>`<div class="card ${a==='full'?'hl':''}"><div class="badge">${esc(a)}</div><div style="font-size:28px;font-weight:700;margin-top:6px">${pct(A[a].precision)}</div><div class="meta">precision (lenient) · strict ${pct(A[a].precision_strict)}</div><div style="margin-top:8px">recall ${pct(A[a].recall)} · F1 ${pct(A[a].f1)}</div><div class="meta">verified-rate ${pct(A[a].verified_rate)} · patch pass ${pct(A[a].patch_pass_rate)}</div><div class="meta">$${(A[a].cost_usd||0).toFixed(2)} · ${A[a].minutes_per_repo??'-'} min/repo · $${A[a].cost_per_verified_bug??'-'}/verified bug</div></div>`).join('')+`</div>`;
+h+=`<h2>Precision / recall / F1 by arm</h2><div class="card"><div class="bars">`+order.map(a=>`<div class="g">${['precision','recall','f1'].map(k=>`<i style="height:${Math.round((A[a][k]||0)*100)}%;background:${colors[k]}" title="${k} ${pct(A[a][k])}"></i>`).join('')}<span>${esc(a)}</span></div>`).join('')+`</div><div class="legend"><span><b style="background:var(--a)"></b>precision</span><span><b style="background:var(--b)"></b>recall</span><span><b style="background:var(--c)"></b>F1</span></div></div>`;
+h+=`<h2>Metrics table</h2><div class="card"><table><tr><th>arm</th><th>TP</th><th>FP</th><th>FN</th><th>P</th><th>P strict</th><th>R</th><th>F1</th><th>F1 strict</th><th>cand.</th><th>verified</th><th>fixed</th><th>$</th><th>time</th></tr>`+order.map(a=>{const x=A[a];return `<tr><td>${esc(a)}</td><td>${x.tp}</td><td>${x.fp}</td><td>${x.fn}</td><td>${pct(x.precision)}</td><td>${pct(x.precision_strict)}</td><td>${pct(x.recall)}</td><td>${pct(x.f1)}</td><td>${pct(x.f1_strict)}</td><td>${x.candidates}</td><td>${x.verified}</td><td>${x.fixed}</td><td>${x.cost_usd.toFixed(2)}</td><td>${x.wall_clock_s}s</td></tr>`}).join('')+`</table></div>`;
+for(const a of order){const pc=A[a].per_category||{},cats=Object.keys(pc).sort();if(!cats.length)continue;h+=`<h2>Per category — ${esc(a)}</h2><div class="card"><table><tr><th>category</th><th>TP</th><th>FP</th><th>FN</th><th>recall</th></tr>`+cats.map(c=>{const v=pc[c];const r=v.tp+v.fn?v.tp/(v.tp+v.fn):null;return `<tr><td>${esc(c)}</td><td>${v.tp}</td><td>${v.fp}</td><td>${v.fn}</td><td>${pct(r)}</td></tr>`}).join('')+`</table></div>`;
+const cf=A[a].confusion||{},rows=Object.keys(cf).sort();if(rows.length){const cols=[...new Set(rows.flatMap(r=>Object.keys(cf[r])))].sort();const mx=Math.max(1,...rows.flatMap(r=>Object.values(cf[r])));h+=`<div class="card heat" style="margin-top:8px"><div class="meta">Confusion: injected category (rows) vs reported category (cols)</div><table><tr><th></th>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${rows.map(r=>`<tr><td>${esc(r)}</td>${cols.map(c=>{const v=cf[r][c]||0;return `<td data-v style="--p:${Math.round(v/mx*80)}">${v||''}</td>`}).join('')}</tr>`).join('')}</table></div>`}}
+h+=`<h2>Per instance</h2><div class="card"><table><tr><th>instance</th><th>category</th><th>arm</th><th>found</th><th>strict</th><th>FP</th><th>reported</th><th>$</th></tr>`+(S.per_instance||[]).map(r=>`<tr><td>${esc(r.instance)}</td><td>${esc(r.category)}</td><td>${esc(r.arm)}</td><td style="color:${r.found?'var(--c)':'var(--bad)'}">${r.found?'✓':'✗'}</td><td>${r.strict?'✓':''}</td><td>${r.false_positives}</td><td>${r.reported}</td><td>${r.cost_usd}</td></tr>`).join('')+`</table></div>`;
+document.getElementById('app').innerHTML=h;
+</script></body></html>

@@ -1,0 +1,16 @@
+base_model: Qwen/Qwen2.5-Coder-1.5B
+data_dir: training/data
+output_dir: .sentinel/models/triage-lora
+max_len: 2048
+epochs: 3
+lr: 0.0002
+batch_size: 16
+grad_accum: 4        # effective 64
+warmup_ratio: 0.05
+bf16: true
+seed: 20260914
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]

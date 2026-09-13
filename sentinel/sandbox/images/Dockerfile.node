@@ -1,0 +1,7 @@
+# Sentinel sandbox base image for TypeScript/JavaScript repos.
+FROM node:20-alpine
+ENV CI=1 NODE_ENV=test
+RUN apk add --no-cache git bash python3 make g++ && corepack enable
+RUN adduser -D -u 10001 sandbox
+WORKDIR /workspace
+USER sandbox

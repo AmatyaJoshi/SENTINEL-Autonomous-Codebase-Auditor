@@ -2294,6 +2294,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-timeout"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/82/4c9ecabab13363e72d880f2fb504c5f750433b2b6f16e99f4ec21ada284c/pytest_timeout-2.4.0.tar.gz", hash = "sha256:7e68e90b01f9eff71332b25001f85c75495fc4e3a836701876183c4bcfd0540a", size = 17973, upload-time = "2025-05-05T19:44:34.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/b6/3127540ecdf1464a00e5a01ee60a1b09175f6913f0644ac748494d9c4b21/pytest_timeout-2.4.0-py3-none-any.whl", hash = "sha256:c42667e5cdadb151aeb5b26d114aff6bdf5a907f176a007a30b940d3d865b5c2", size = 14382, upload-time = "2025-05-05T19:44:33.502Z" },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -2575,6 +2587,7 @@ dependencies = [
     { name = "docker" },
     { name = "fastapi" },
     { name = "gitpython" },
+    { name = "jinja2" },
     { name = "langchain-core" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
@@ -2587,11 +2600,13 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pygithub" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "ruff" },
     { name = "semgrep", marker = "sys_platform != 'win32'" },
     { name = "sqlmodel" },
+    { name = "sse-starlette" },
     { name = "traceloop-sdk" },
     { name = "tree-sitter" },
     { name = "tree-sitter-javascript" },
@@ -2610,9 +2625,11 @@ postgres = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "hypothesis" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-timeout" },
     { name = "types-docker" },
     { name = "types-pyyaml" },
 ]
@@ -2623,10 +2640,11 @@ requires-dist = [
     { name = "docker", specifier = ">=7.1" },
     { name = "fastapi", specifier = ">=0.111" },
     { name = "gitpython", specifier = ">=3.1" },
+    { name = "jinja2", specifier = ">=3.1" },
     { name = "langchain-core", specifier = ">=0.3" },
     { name = "langgraph", specifier = ">=0.2" },
     { name = "langgraph-checkpoint-postgres", marker = "extra == 'postgres'", specifier = ">=1.0" },
-    { name = "langgraph-checkpoint-sqlite", specifier = ">=1.0" },
+    { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
     { name = "litellm", specifier = ">=1.40" },
     { name = "mypy", specifier = ">=2.3.1" },
     { name = "networkx", specifier = ">=3.3" },
@@ -2638,11 +2656,13 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.3" },
     { name = "pygithub", specifier = ">=2.3" },
+    { name = "python-multipart", specifier = ">=0.0.32" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7" },
     { name = "ruff", specifier = ">=0.16.7" },
     { name = "semgrep", marker = "sys_platform != 'win32'", specifier = ">=1.177.0" },
     { name = "sqlmodel", specifier = ">=0.0.21" },
+    { name = "sse-starlette", specifier = ">=2.1" },
     { name = "traceloop-sdk", specifier = ">=0.30" },
     { name = "tree-sitter", specifier = ">=0.25,<0.26" },
     { name = "tree-sitter-javascript", specifier = ">=0.25.0" },
@@ -2655,9 +2675,11 @@ provides-extras = ["postgres"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "hypothesis", specifier = ">=6.100" },
     { name = "pytest", specifier = ">=8.2" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "types-docker" },
     { name = "types-pyyaml" },
 ]

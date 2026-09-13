@@ -1,0 +1,27 @@
+# Small suite (SPEC §8.4): 5 repos × 6 mutations, must finish in < 30 min. Runs nightly.
+# `sha` is resolved on first run and written back into the manifest for reproducibility; pin it
+# here once a baseline has been recorded in bench/RESULTS.md.
+suite: small
+seed: 20260914
+mutations_per_repo: 6
+repos:
+  - name: pallets/itsdangerous
+    url: https://github.com/pallets/itsdangerous.git
+    sha: null
+    language: python
+  - name: pallets/markupsafe
+    url: https://github.com/pallets/markupsafe.git
+    sha: null
+    language: python
+  - name: hukkin/tomli
+    url: https://github.com/hukkin/tomli.git
+    sha: null
+    language: python
+  - name: python-humanize/humanize
+    url: https://github.com/python-humanize/humanize.git
+    sha: null
+    language: python
+  - name: unjs/ufo
+    url: https://github.com/unjs/ufo.git
+    sha: null
+    language: typescript

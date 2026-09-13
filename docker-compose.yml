@@ -1,4 +1,31 @@
+# Full local stack: API + dashboard, Postgres + pgvector, Jaeger.
+#   docker compose up -d            # everything
+#   docker compose up -d postgres jaeger   # infra only, run `uv run sentinel serve` on the host
 services:
+  sentinel:
+    build: .
+    image: sentinel:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:sentinel@postgres:5432/sentinel
+      SENTINEL_OTLP_ENDPOINT: http://jaeger:4317
+      SENTINEL_WORK_DIR: /data
+      SENTINEL_API_KEYS: ${SENTINEL_API_KEYS:-}
+      SENTINEL_ANTHROPIC_API_KEY: ${SENTINEL_ANTHROPIC_API_KEY:-}
+      SENTINEL_OPENAI_API_KEY: ${SENTINEL_OPENAI_API_KEY:-}
+      SENTINEL_GITHUB_TOKEN: ${SENTINEL_GITHUB_TOKEN:-}
+      SENTINEL_API_CORS_ORIGINS: ${SENTINEL_API_CORS_ORIGINS:-http://localhost:8000}
+      SENTINEL_ENVIRONMENT: prod
+    ports:
+      - "8000:8000"
+    volumes:
+      - sentinel-data:/data
+      # Sandboxes are sibling containers; the socket is the only privilege this service needs.
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -26,3 +53,4 @@ services:
 
 volumes:
   pgdata:
+  sentinel-data:

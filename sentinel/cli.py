@@ -83,7 +83,7 @@ def index(
     repo: Annotated[str, typer.Argument(help="Git URL or local path")],
     sha: Annotated[str | None, typer.Option(help="Pin to a commit")] = None,
 ) -> None:
-    """Ingest + tree-sitter symbols + chunks + embeddings + call graph → index store."""
+    """Ingest + tree-sitter symbols + chunks + embeddings + call graph -> index store."""
     from sentinel.graph.nodes.ingest import ingest as _ingest
     from sentinel.indexing.embeddings import HashEmbedder, make_embedder
     from sentinel.indexing.pipeline import index_repo
@@ -133,7 +133,7 @@ def search(
     if repo_id is None:
         last = read_last_index(settings.work_dir)
         if last is None:
-            err.print("[red]nothing indexed yet[/] — run `sentinel index <repo>` first")
+            err.print("[red]nothing indexed yet[/] - run `sentinel index <repo>` first")
             raise typer.Exit(code=1)
         repo_id = last[0]
     embedder = make_embedder(settings)
@@ -209,7 +209,7 @@ def analyze(
     if sarif:
         sarif.parent.mkdir(parents=True, exist_ok=True)
         sarif.write_text(json.dumps(to_sarif(results), indent=2), encoding="utf-8")
-        console.print(f"[green]SARIF written[/] → {sarif}")
+        console.print(f"[green]SARIF written[/] -> {sarif}")
 
 
 @app.command()
@@ -248,53 +248,172 @@ def symbol(
             console.print(f"callees: {cg.callees(qid)}")
 
 
-# --------------------------------------------------------------------------- later phases
+# --------------------------------------------------------------------------- audit / replay / serve
+
+
+def _manager(settings: Settings):  # type: ignore[no-untyped-def]
+    from sentinel.db.session import get_engine
+    from sentinel.logging_setup import configure_logging
+    from sentinel.runner import RunManager
+
+    configure_logging(settings)
+    _boot(settings)
+    return RunManager(settings, get_engine(settings))
+
+
+def _print_run_summary(mgr, run_id: str) -> None:  # type: ignore[no-untyped-def]
+    from sentinel.runner import run_to_dict
+
+    run = mgr.get(run_id)
+    if run is None:
+        return
+    d = run_to_dict(run)
+    t = Table(title=f"run {run_id}", show_header=False)
+    for k in ("status", "repo_url", "commit_sha", "language", "arm", "cost_usd", "counts", "error"):
+        t.add_row(k, str(d.get(k)))
+    console.print(t)
+    findings = mgr.findings(run_id)
+    if findings:
+        ft = Table(title="findings")
+        for c in ("#", "status", "severity", "category", "location", "conf"):
+            ft.add_column(c)
+        for f in findings:
+            ft.add_row(
+                str(f.rank or ""),
+                f.status,
+                f.severity,
+                f.category,
+                f"{f.file}:{f.line_start}",
+                f"{f.confidence:.2f}",
+            )
+        console.print(ft)
+    console.print(f"report: {settings_path(mgr.settings) / 'runs' / run_id / 'report.html'}")
+
+
+def settings_path(settings: Settings) -> Path:
+    return settings.work_dir
 
 
 @app.command()
 def audit(
     repo: Annotated[str, typer.Argument(help="Git URL or local path")],
     pr: Annotated[bool, typer.Option(help="Open pull requests for fixed findings")] = False,
-    review: Annotated[bool, typer.Option(help="Human review before PR creation")] = False,
+    review: Annotated[bool, typer.Option(help="Pause before report/PR for human review")] = False,
     max_usd: Annotated[float | None, typer.Option(help="Budget cap in USD")] = None,
+    max_minutes: Annotated[int | None, typer.Option(help="Wall-clock budget")] = None,
+    arm: Annotated[str, typer.Option(help="full | no_triage | single_shot | analyzers")] = "full",
+    sha: Annotated[str | None, typer.Option(help="Pin to a commit")] = None,
 ) -> None:
-    """Run the full audit graph on a repository. (Phase 3+)"""
+    """Run the full audit graph: ingest -> index -> analyze -> plan -> hunt -> triage -> verify -> fix ->
+    regress -> rank -> report (-> PR)."""
+    from sentinel.graph.state import Budget
+
     settings = get_settings()
-    budget = max_usd if max_usd is not None else settings.budget.max_usd
-    console.print(f"[bold]audit[/] {repo} pr={pr} review={review} budget=${budget}")
-    console.print("[yellow]Graph execution lands in Phase 3.[/]")
-    raise typer.Exit(code=NOT_YET)
-
-
-@app.command()
-def bench(
-    suite: Annotated[str, typer.Option(help="small | full")] = "small",
-    arm: Annotated[str, typer.Option(help="analyzers | single_shot | no_triage | full")] = "full",
-    out: Annotated[Path, typer.Option()] = Path("bench/out"),
-) -> None:
-    """Run the benchmark harness. (Phase 5)"""
-    console.print(f"[bold]bench[/] suite={suite} arm={arm} out={out}")
-    console.print("[yellow]Benchmark harness lands in Phase 5.[/]")
-    raise typer.Exit(code=NOT_YET)
-
-
-@app.command()
-def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
-    """Start the FastAPI run viewer. (Phase 6)"""
-    console.print(f"[bold]serve[/] {host}:{port}")
-    console.print("[yellow]Dashboard lands in Phase 6.[/]")
-    raise typer.Exit(code=NOT_YET)
+    mgr = _manager(settings)
+    budget = Budget(
+        max_usd=max_usd if max_usd is not None else settings.budget.max_usd,
+        max_minutes=max_minutes or settings.budget.max_minutes,
+        max_findings=settings.budget.max_findings,
+    )
+    run = mgr.create(
+        repo, budget=budget, arm=arm, open_pr=pr, review=review, created_by="cli", sha=sha
+    )
+    console.print(f"[bold]audit[/] {repo} run_id={run.id} arm={arm} budget=${budget.max_usd}")
+    mgr.buses  # noqa: B018 - ensure manager initialised
+    mgr.start(run, block=True)
+    _print_run_summary(mgr, run.id)
+    final = mgr.get(run.id)
+    if final and final.status == "awaiting_review":
+        console.print(
+            "[yellow]awaiting review[/]: approve/reject findings in the dashboard or via "
+            f"`sentinel replay {run.id}` after deciding"
+        )
+    if final and final.status == "failed":
+        raise typer.Exit(code=1)
 
 
 @app.command()
 def replay(
     run_id: Annotated[str, typer.Argument()],
-    from_node: Annotated[str, typer.Option("--from", help="Node to resume from")] = "verify",
+    from_node: Annotated[
+        str | None, typer.Option("--from", help="Rewind to before this node")
+    ] = None,
 ) -> None:
-    """Resume a checkpointed run from a given node. (Phase 3)"""
-    console.print(f"[bold]replay[/] {run_id} from={from_node}")
-    console.print("[yellow]Replay lands in Phase 3.[/]")
-    raise typer.Exit(code=NOT_YET)
+    """Resume a checkpointed run (optionally rewinding to before a node) and finish it."""
+    settings = get_settings()
+    mgr = _manager(settings)
+    try:
+        mgr.resume(run_id, from_node=from_node, block=True)
+    except (KeyError, ValueError) as e:
+        err.print(f"[red]{e}[/]")
+        raise typer.Exit(code=1) from e
+    _print_run_summary(mgr, run_id)
+
+
+@app.command()
+def runs(limit: int = 20) -> None:
+    """List recent runs."""
+    settings = get_settings()
+    mgr = _manager(settings)
+    items, total = mgr.list_runs(limit=limit)
+    t = Table(title=f"runs ({total})")
+    for c in ("id", "status", "repo", "arm", "cost", "started"):
+        t.add_column(c)
+    for r in items:
+        t.add_row(
+            r.id[:12],
+            r.status,
+            r.repo_url[-50:],
+            r.arm,
+            f"${r.cost_usd:.2f}",
+            r.started_at.strftime("%Y-%m-%d %H:%M"),
+        )
+    console.print(t)
+
+
+@app.command()
+def bench(
+    suite: Annotated[str, typer.Option(help="small | full")] = "small",
+    arms: Annotated[
+        str, typer.Option(help="comma list: analyzers,single_shot,no_triage,full")
+    ] = "analyzers,single_shot,no_triage,full",
+    out: Annotated[Path, typer.Option()] = Path("bench/out"),
+    inject_only: Annotated[
+        bool, typer.Option(help="Only generate mutated repos + manifest")
+    ] = False,
+) -> None:
+    """Run the injected-bug benchmark (SPEC §8) and write report.html/json."""
+    from bench.run_bench import main as bench_main
+
+    code = bench_main(
+        ["--suite", suite, "--arms", arms, "--out", str(out)]
+        + (["--inject-only"] if inject_only else [])
+    )
+    raise typer.Exit(code=code)
+
+
+@app.command()
+def serve(
+    host: Annotated[str | None, typer.Option()] = None,
+    port: Annotated[int | None, typer.Option()] = None,
+    reload: bool = False,
+) -> None:
+    """Start the FastAPI server (API + dashboard)."""
+    import uvicorn
+
+    settings = get_settings()
+    from sentinel.logging_setup import configure_logging
+
+    configure_logging(settings)
+    _boot(settings)
+    uvicorn.run(
+        "sentinel.api.app:app_factory",
+        factory=True,
+        host=host or settings.api_host,
+        port=port or settings.api_port,
+        reload=reload,
+        log_level=settings.log_level.lower(),
+    )
 
 
 @app.command("init-db")
