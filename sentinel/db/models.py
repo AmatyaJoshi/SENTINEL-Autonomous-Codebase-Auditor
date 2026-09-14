@@ -17,6 +17,13 @@ def _uuid() -> str:
     return uuid4().hex
 
 
+def as_utc(dt: datetime | None) -> datetime | None:
+    """SQLite returns naive datetimes; treat them as UTC so comparisons never mix kinds."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 class Run(SQLModel, table=True):
     __tablename__ = "runs"
 
@@ -26,7 +33,9 @@ class Run(SQLModel, table=True):
     commit_sha: str | None = None
     language: str | None = None
     arm: str = "full"
-    status: str = "created"  # created|running|awaiting_review|completed|failed|cancelled
+    status: str = "created"  # created|queued|running|awaiting_review|completed|failed|cancelled
+    worker_id: str | None = None
+    worker_heartbeat: datetime | None = None
     current_node: str | None = None
     progress: float = 0.0
     started_at: datetime = Field(default_factory=_now)
@@ -101,6 +110,23 @@ class BenchResult(SQLModel, table=True):
     wall_clock_s: float = 0.0
     created_at: datetime = Field(default_factory=_now)
     metrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class ApiKeyRecord(SQLModel, table=True):
+    """Database-managed API keys (hashed). Static keys from settings still work alongside."""
+
+    __tablename__ = "api_keys"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    name: str
+    role: str = "viewer"
+    key_hash: str = Field(index=True, unique=True)
+    prefix: str
+    created_by: str
+    created_at: datetime = Field(default_factory=_now)
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_used_at: datetime | None = None
 
 
 class AuditLog(SQLModel, table=True):

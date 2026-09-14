@@ -37,10 +37,20 @@ dependencies = [
     "python-multipart>=0.0.32",
     "sse-starlette>=2.1",
     "jinja2>=3.1",
+    "prometheus-client>=0.26.0",
+    "alembic>=1.13",
+    "pyjwt[crypto]>=2.9",
 ]
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.1", "pgvector>=0.3", "langgraph-checkpoint-postgres>=1.0"]
+training = [
+    "mlflow>=3.16.0",
+]
+secrets = [
+    "boto3>=1.43.93",
+    "hvac>=2.4.0",
+]
 
 [project.scripts]
 sentinel = "sentinel.cli:app"
@@ -86,6 +96,10 @@ strict = true
 packages = ["sentinel"]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sentinel.db.migrations.*"
+ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"

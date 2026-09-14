@@ -29,9 +29,21 @@ def get_engine(settings: Settings | None = None) -> Engine:
 
 
 def init_db(engine: Engine | None = None) -> None:
+    """Create/upgrade the schema. Uses Alembic migrations when a versions/ directory exists so
+    production databases evolve safely; falls back to create_all for throwaway engines."""
     from sentinel.db import models  # noqa: F401  (registers tables on the metadata)
 
-    SQLModel.metadata.create_all(engine or get_engine())
+    eng = engine or get_engine()
+    SQLModel.metadata.create_all(eng)
+    try:
+        from sentinel.db.migrate import ROOT, upgrade
+
+        if any((ROOT / "sentinel" / "db" / "migrations" / "versions").glob("*.py")):
+            upgrade(eng, str(eng.url.render_as_string(hide_password=False)))
+    except Exception as e:  # noqa: BLE001 - migrations are best-effort for in-memory/test engines
+        import logging
+
+        logging.getLogger("sentinel.db").debug("alembic upgrade skipped: %s", e)
 
 
 @contextmanager

@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 from sentinel.graph.state import Finding  # noqa: E402
 from sentinel.triage.model import HeuristicTriage, LinearTriage  # noqa: E402
+from training import mlflow_log  # noqa: E402
 
 
 def auroc(scores: list[float], labels: list[int]) -> float | None:
@@ -209,6 +210,12 @@ def main(argv: list[str] | None = None) -> int:
         }
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(result, indent=2), encoding="utf-8")
+    with mlflow_log.run("triage-eval", params={"n_test": len(rows), "threshold": a.threshold}):
+        for name, m in result["arms"].items():
+            mlflow_log.log_metrics(
+                {k: v for k, v in m.items() if k != "calibration"}, prefix=f"{name}."
+            )
+        mlflow_log.log_artifact(a.out)
     print(f"{'arm':18s} {'AUROC':>7s} {'F1':>7s} {'Brier':>7s} avoided")
     for name, m in result["arms"].items():
         ci = result["cost_impact"][name]

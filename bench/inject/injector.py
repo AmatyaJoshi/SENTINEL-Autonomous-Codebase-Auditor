@@ -18,6 +18,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from bench.inject.coverage import is_covered, load_coverage
 from bench.inject.operators import Candidate, apply_candidate, propose
 from sentinel.graph.nodes.plan import is_test_file
 from sentinel.indexing.pipeline import discover_files
@@ -55,6 +56,8 @@ class Manifest:
     instances: list[Injected] = field(default_factory=list)
     rejected_equivalent: int = 0
     rejected_broken: int = 0
+    coverage_guided: bool = False
+    candidates_considered: int = 0
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +72,8 @@ class Manifest:
             instances=[Injected(**i) for i in d["instances"]],
             rejected_equivalent=d.get("rejected_equivalent", 0),
             rejected_broken=d.get("rejected_broken", 0),
+            coverage_guided=d.get("coverage_guided", False),
+            candidates_considered=d.get("candidates_considered", 0),
         )
 
 
@@ -155,14 +160,26 @@ def inject(
     suite: str = "small",
     max_attempts: int | None = None,
     baseline_failures: set[str] | None = None,
+    coverage_runner: Callable[[Path], None] | None = None,
 ) -> Manifest:
     rng = random.Random(seed)
     manifest = Manifest(suite=suite, created_at=time.time())
     files = [f for f in discover_files(clean_repo) if not is_test_file(f)]
+    # SPEC §8.2: only mutate lines covered by existing tests. Without coverage data every candidate
+    # is kept and the "a test must fail" check below is the sole filter.
+    coverage = None
+    if coverage_runner is not None:
+        try:
+            coverage_runner(clean_repo)
+            coverage = load_coverage(clean_repo)
+        except Exception:  # noqa: BLE001 - coverage is an optimisation, never a hard requirement
+            coverage = None
+    manifest.coverage_guided = coverage is not None
     candidates: list[tuple[str, Candidate]] = []
     for rel in files:
         src = (clean_repo / rel).read_text(encoding="utf-8", errors="replace")
-        candidates += [(rel, c) for c in propose(src, rel)]
+        candidates += [(rel, c) for c in propose(src, rel) if is_covered(coverage, rel, c.line)]
+    manifest.candidates_considered = len(candidates)
     rng.shuffle(candidates)
     # balance operators: round-robin over categories
     by_cat: dict[str, list[tuple[str, Candidate]]] = {}

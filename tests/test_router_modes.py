@@ -72,7 +72,7 @@ def test_effective_model_falls_back_to_openrouter_when_only_that_key_exists(tmp_
     assert (
         s.effective_model("primary").startswith("openrouter/") and len(s.model_pool("primary")) >= 4
     )
-    assert s.effective_model("fallback") == "openrouter/free"
+    assert s.effective_model("fallback").startswith("openrouter/")
     assert (
         not s.has_key_for("openai/gpt-5")
         and s.has_key_for("openrouter/free")

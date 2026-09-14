@@ -48,6 +48,27 @@ def docker_executor(settings: Settings, language: str, work: Path):  # type: ign
     if not runner.available():
         raise SandboxUnavailableError("Docker engine required to confirm mutants kill tests")
 
+    def coverage(repo: Path) -> None:
+        from bench.inject.coverage import node_coverage_command, python_coverage_command
+
+        ing = ingest(str(repo), settings)
+        image = runner.build_repo_image(
+            repo, language, ing.lockfile_hash, list(ing.package_managers), work / "img"
+        )
+        ws = make_workspace(repo, work / "cov")
+        fw = (
+            ing.test_frameworks[0]
+            if ing.test_frameworks and ing.test_frameworks[0] != "unknown"
+            else "pytest"
+        )
+        cmd = python_coverage_command() if language == "python" else node_coverage_command(fw)
+        runner.run(image, ws, cmd, timeout_s=settings.sandbox.suite_timeout_s)
+        for rel in (".sentinel/coverage.json", "coverage/lcov.info"):
+            src = ws / rel
+            if src.exists():
+                (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+                (repo / rel).write_bytes(src.read_bytes())
+
     def run(repo: Path, paths: list[str] | None) -> TestReport:
         ing = ingest(str(repo), settings)
         image = runner.build_repo_image(
@@ -63,6 +84,7 @@ def docker_executor(settings: Settings, language: str, work: Path):  # type: ign
             runner, image, ws, fw, paths, timeout_s=settings.sandbox.suite_timeout_s
         ).report  # type: ignore[arg-type]
 
+    run.coverage = coverage  # type: ignore[attr-defined]
     return run
 
 
@@ -223,6 +245,7 @@ def run_suite(
             seed=int(dataset.get("seed", 0)),
             executor=exec_fn,
             suite=suite,
+            coverage_runner=getattr(exec_fn, "coverage", None),
         )
         manifest.save(out / "manifests" / f"{name.replace('/', '__')}.json")
         all_instances += manifest.instances

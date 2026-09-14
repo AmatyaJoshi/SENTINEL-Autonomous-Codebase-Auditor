@@ -103,4 +103,10 @@ Reconnect with `Last-Event-ID` to replay from a sequence number. A heartbeat com
 ```
 
 ### `GET /api/v1/settings` (admin) → redacted settings snapshot.
+### `GET|POST /api/v1/keys`, `POST /api/v1/keys/{id}/rotate`, `DELETE /api/v1/keys/{id}` (admin) — database-managed API keys.
+### `POST /api/v1/admin/gc?older_than_days=&dry_run=` (admin) — retention sweep.
+### `GET /api/v1/audit-log?limit=` (admin) — who did what.
+### `GET /metrics` — Prometheus exposition (unauthenticated; restrict at the ingress).
+Bearer tokens: `Authorization: Bearer <OIDC JWT>` is accepted when `SENTINEL_OIDC_ISSUER` is set.
+Run status also includes `queued` when `SENTINEL_EXECUTION_MODE=queue`.
 ### `GET /api/v1/me` → `{"name": "ci-bot", "role": "operator"}`

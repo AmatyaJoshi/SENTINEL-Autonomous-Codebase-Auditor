@@ -1,14 +1,19 @@
-"""FastAPI application implementing docs/API.md: auth (API keys + roles), rate limiting, audit log,
-runs/findings/events (SSE), bench results, reports, and the built dashboard as static files."""
+"""FastAPI application implementing docs/API.md: auth (API keys, DB keys, OIDC), roles, rate limiting,
+audit log, request IDs, Prometheus metrics, runs/findings/events (SSE, cross-process), reports,
+bench results, key management, and the built dashboard as static files."""
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
+import threading
 import time
+import uuid
 from collections import defaultdict, deque
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -21,20 +26,17 @@ from sqlmodel import col, select
 from sse_starlette.sse import EventSourceResponse
 
 from sentinel import __version__
+from sentinel.api.auth import ROLE_RANK, Authenticator, Principal
 from sentinel.config import Role, Settings
 from sentinel.db.models import AuditLog, BenchResult, FindingRecord
 from sentinel.db.session import get_engine, session_scope
 from sentinel.graph.state import Budget
 from sentinel.runner import RunManager, run_to_dict
+from sentinel.telemetry import metrics
 
 log = logging.getLogger("sentinel.api")
-ROLE_RANK = {"viewer": 0, "operator": 1, "admin": 2}
 DASHBOARD_DIST = Path(__file__).parent.parent.parent / "dashboard" / "dist"
-
-
-class Principal(BaseModel):
-    name: str
-    role: Role
+_ = timedelta  # re-exported for type checkers in auth helpers
 
 
 class ApiError(HTTPException):
@@ -46,15 +48,17 @@ class _RateLimiter:
     def __init__(self, per_minute: int) -> None:
         self.per_minute = per_minute
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
 
     def check(self, key: str) -> float | None:
         now = time.time()
-        q = self._hits[key]
-        while q and q[0] < now - 60:
-            q.popleft()
-        if len(q) >= self.per_minute:
-            return 60 - (now - q[0])
-        q.append(now)
+        with self._lock:
+            q = self._hits[key]
+            while q and q[0] < now - 60:
+                q.popleft()
+            if len(q) >= self.per_minute:
+                return 60 - (now - q[0])
+            q.append(now)
         return None
 
 
@@ -74,18 +78,27 @@ class Decision(BaseModel):
     note: str = ""
 
 
+class CreateKey(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    role: Role = "viewer"
+    expires_days: int | None = Field(default=None, ge=1, le=3650)
+
+
 def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI:
     engine = manager.engine if manager is not None else get_engine(settings)
     mgr = manager or RunManager(settings, engine)
+    auth = Authenticator(settings, engine)
     limiter = _RateLimiter(settings.api_rate_limit_per_minute)
-    open_mode = not settings.api_keys
-    if open_mode:
+    if auth.open_mode:
         log.warning(
-            "SENTINEL_API_KEYS not set: API running in OPEN dev mode (every request is admin)"
+            "no API keys or OIDC issuer configured: API running in OPEN dev mode (every request is admin)"
         )
-    keys = {
-        k.key.get_secret_value(): Principal(name=k.name, role=k.role) for k in settings.api_keys
-    }
+    if settings.gc_on_startup and settings.retention_days > 0:
+        from sentinel.retention import collect_garbage
+
+        threading.Thread(
+            target=lambda: collect_garbage(settings, engine), name="gc-startup", daemon=True
+        ).start()
 
     app = FastAPI(
         title="Sentinel", version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json"
@@ -94,7 +107,7 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
         CORSMiddleware,
         allow_origins=settings.api_cors_origins,
         allow_methods=["*"],
-        allow_headers=["*", "X-API-Key"],
+        allow_headers=["*", "X-API-Key", "Authorization", "X-Request-ID"],
         allow_credentials=False,
     )
 
@@ -114,28 +127,51 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
         )
 
     @app.middleware("http")
-    async def _security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+    async def _observe(request: Request, call_next: Callable[[Request], Any]) -> Response:
+        rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:16]
+        t0 = time.perf_counter()
         resp: Response = await call_next(request)
+        route = request.scope.get("route")
+        path = getattr(route, "path", request.url.path)
+        if not path.startswith("/assets"):
+            metrics.HTTP_REQUESTS.labels(request.method, path, str(resp.status_code)).inc()
+            metrics.HTTP_LATENCY.labels(request.method, path).observe(time.perf_counter() - t0)
+        resp.headers["X-Request-ID"] = rid
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("X-Frame-Options", "DENY")
         resp.headers.setdefault("Referrer-Policy", "no-referrer")
-        resp.headers.setdefault("Cache-Control", "no-store") if request.url.path.startswith(
-            "/api"
-        ) else None
+        if request.url.path.startswith("/api"):
+            resp.headers.setdefault("Cache-Control", "no-store")
+            log.info(
+                "%s %s %s %.0fms rid=%s",
+                request.method,
+                request.url.path,
+                resp.status_code,
+                (time.perf_counter() - t0) * 1000,
+                rid,
+            )
         return resp
 
     # ------------------------------------------------------------------ auth
     def principal(request: Request) -> Principal:
+        who: Principal | None = None
+        bearer = request.headers.get("Authorization", "")
         key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-        if open_mode:
-            who = Principal(name="dev", role="admin")
-        else:
-            if not key:
-                raise ApiError(401, "unauthorized", "missing X-API-Key")
-            who = keys.get(key)  # type: ignore[assignment]
+        if bearer.lower().startswith("bearer "):
+            who = auth.by_bearer(bearer[7:].strip())
+            if who is None and not key:
+                raise ApiError(401, "unauthorized", "invalid bearer token")
+        if who is None and key:
+            who = auth.by_api_key(key)
             if who is None:
                 raise ApiError(401, "unauthorized", "invalid API key")
-        wait = limiter.check(key or request.client.host if request.client else "anon")
+        if who is None:
+            if auth.open_mode:
+                who = Principal(name="dev", role="admin", via="open")
+            else:
+                raise ApiError(401, "unauthorized", "missing X-API-Key or Authorization: Bearer")
+        client = request.client.host if request.client else "anon"
+        wait = limiter.check(key or bearer[-32:] or client)
         if wait is not None:
             raise HTTPException(
                 429,
@@ -144,7 +180,7 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
             )
         return who
 
-    def require(role: Role):  # type: ignore[no-untyped-def]
+    def require(role: Role) -> Callable[..., Principal]:
         def dep(who: Principal = Depends(principal)) -> Principal:
             if ROLE_RANK[who.role] < ROLE_RANK[role]:
                 raise ApiError(403, "forbidden", f"requires role {role}")
@@ -164,15 +200,12 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
             raise ApiError(404, "not_found", f"run {run_id} not found")
         return run_to_dict(run)
 
-    # ------------------------------------------------------------------ health
+    # ------------------------------------------------------------------ health / metrics
     @app.get("/health")
     def health() -> dict[str, Any]:
         docker = "unavailable"
-        try:
-            sb = mgr.sandbox_factory()
-            docker = "ok" if sb is not None else "unavailable"
-        except Exception:  # noqa: BLE001
-            docker = "unavailable"
+        with contextlib.suppress(Exception):
+            docker = "ok" if mgr.sandbox_factory() is not None else "unavailable"
         try:
             with session_scope(engine) as s:
                 s.exec(select(FindingRecord.id).limit(1)).first()
@@ -186,7 +219,10 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
                 "db": db,
                 "docker": docker,
                 "llm": "configured" if settings.llm_configured() else "missing",
-                "auth": "open" if open_mode else "api-key",
+                "auth": "open"
+                if auth.open_mode
+                else ("oidc+api-key" if settings.oidc_issuer else "api-key"),
+                "execution": settings.execution_mode,
             },
         }
 
@@ -198,6 +234,11 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
             return JSONResponse({"ready": True})
         except Exception:  # noqa: BLE001
             return JSONResponse({"ready": False}, status_code=503)
+
+    @app.get("/metrics", include_in_schema=False)
+    def prometheus() -> Response:
+        body, ctype = metrics.render()
+        return Response(content=body, media_type=ctype)
 
     @app.get("/api/v1/me")
     def me(who: Principal = Depends(principal)) -> Principal:
@@ -221,7 +262,9 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
             by_status[f.status] += 1
         return {
             "runs_total": total,
-            "runs_active": sum(1 for r in runs if r.status in ("running", "awaiting_review")),
+            "runs_active": sum(
+                1 for r in runs if r.status in ("running", "queued", "awaiting_review")
+            ),
             "findings_total": len(frs),
             "verified_total": by_status["verified"]
             + by_status["fixed"]
@@ -250,8 +293,6 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
     def create_run(
         body: CreateRun, who: Principal = Depends(require("operator"))
     ) -> dict[str, Any]:
-        if mgr.active_count() >= settings.max_concurrent_runs:
-            raise ApiError(409, "conflict", "max concurrent runs reached; try later")
         run = mgr.create(
             body.repo,
             budget=Budget(
@@ -263,8 +304,18 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
             created_by=who.name,
             sha=body.sha,
         )
-        mgr.start(run)
-        audit(who, "run.create", run.id, repo=body.repo, arm=body.arm)
+        if settings.execution_mode == "queue":
+            from sentinel.queue import enqueue
+
+            enqueue(engine, run.id)
+        else:
+            if mgr.active_count() >= settings.max_concurrent_runs:
+                mgr.delete(run.id)
+                raise ApiError(
+                    409, "conflict", "max concurrent runs reached; try later or enable queue mode"
+                )
+            mgr.start(run)
+        audit(who, "run.create", run.id, repo=body.repo, arm=body.arm, mode=settings.execution_mode)
         return get_run_or_404(run.id)
 
     @app.get("/api/v1/runs/{run_id}")
@@ -361,35 +412,46 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
 
         unsub = bus.subscribe(_push) if bus else None
 
+        def _fmt(seq: int, t: str, d: Any) -> dict[str, Any]:
+            return {"id": str(seq), "event": t, "data": json.dumps(d, default=str)}
+
         async def gen() -> AsyncIterator[dict[str, Any]]:
             try:
                 seq_seen = after
                 for ev in mgr.events(run_id, after_seq=after):
                     seq_seen = ev.seq
-                    yield {
-                        "id": str(ev.seq),
-                        "event": ev.type,
-                        "data": json.dumps(ev.data, default=str),
-                    }
+                    yield _fmt(ev.seq, ev.type, ev.data)
                     if ev.type == "run.end":
                         return
-                run = mgr.get(run_id)
-                if run and run.status in ("completed", "failed", "cancelled") and bus is None:
-                    return
                 while True:
                     if await request.is_disconnected():
                         return
-                    try:
-                        seq, t, d = await asyncio.wait_for(queue.get(), timeout=15)
-                    except TimeoutError:
-                        yield {"comment": "ping"}
-                        continue
-                    if seq <= seq_seen:
-                        continue
-                    seq_seen = seq
-                    yield {"id": str(seq), "event": t, "data": json.dumps(d, default=str)}
-                    if t == "run.end":
-                        return
+                    if bus is not None:  # run owned by this process: push
+                        try:
+                            seq, t, d = await asyncio.wait_for(queue.get(), timeout=15)
+                        except TimeoutError:
+                            yield {"comment": "ping"}
+                            continue
+                        if seq <= seq_seen:
+                            continue
+                        seq_seen = seq
+                        yield _fmt(seq, t, d)
+                        if t == "run.end":
+                            return
+                    else:  # run owned by a worker / other replica: tail the events table
+                        new = await asyncio.to_thread(mgr.events, run_id, seq_seen)
+                        if not new:
+                            run = mgr.get(run_id)
+                            if run and run.status in ("completed", "failed", "cancelled"):
+                                return
+                            await asyncio.sleep(1.0)
+                            yield {"comment": "ping"}
+                            continue
+                        for ev in new:
+                            seq_seen = ev.seq
+                            yield _fmt(ev.seq, ev.type, ev.data)
+                            if ev.type == "run.end":
+                                return
             finally:
                 if unsub:
                     unsub()
@@ -444,9 +506,83 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
                 )
         return {"items": items}
 
+    # ------------------------------------------------------------------ admin: settings, keys, gc, audit
     @app.get("/api/v1/settings")
     def settings_view(_: Principal = Depends(require("admin"))) -> dict[str, Any]:
         return settings.redacted()
+
+    def key_dict(k: Any) -> dict[str, Any]:
+        return {
+            "id": k.id,
+            "name": k.name,
+            "role": k.role,
+            "prefix": k.prefix,
+            "created_by": k.created_by,
+            "created_at": k.created_at.isoformat(),
+            "expires_at": k.expires_at.isoformat() if k.expires_at else None,
+            "revoked_at": k.revoked_at.isoformat() if k.revoked_at else None,
+            "last_used_at": k.last_used_at.isoformat() if k.last_used_at else None,
+        }
+
+    @app.get("/api/v1/keys")
+    def list_keys(_: Principal = Depends(require("admin"))) -> dict[str, Any]:
+        return {"items": [key_dict(k) for k in auth.list_keys()]}
+
+    @app.post("/api/v1/keys", status_code=201)
+    def create_key(body: CreateKey, who: Principal = Depends(require("admin"))) -> dict[str, Any]:
+        raw, rec = auth.create_key(body.name, body.role, who.name, body.expires_days)
+        audit(who, "key.create", rec.id, name=body.name, role=body.role)
+        return {**key_dict(rec), "key": raw, "note": "store this key now; it is not shown again"}
+
+    @app.post("/api/v1/keys/{key_id}/rotate")
+    def rotate_key(key_id: str, who: Principal = Depends(require("admin"))) -> dict[str, Any]:
+        out = auth.rotate_key(key_id, who.name)
+        if out is None:
+            raise ApiError(404, "not_found", "key not found or already revoked")
+        raw, rec = out
+        audit(who, "key.rotate", key_id, new_id=rec.id)
+        return {**key_dict(rec), "key": raw, "note": "old key stays valid for 1 hour"}
+
+    @app.delete("/api/v1/keys/{key_id}", status_code=204)
+    def revoke_key(key_id: str, who: Principal = Depends(require("admin"))) -> Response:
+        if not auth.revoke_key(key_id):
+            raise ApiError(404, "not_found", "key not found or already revoked")
+        audit(who, "key.revoke", key_id)
+        return Response(status_code=204)
+
+    @app.post("/api/v1/admin/gc")
+    def run_gc(
+        older_than_days: int | None = None,
+        dry_run: bool = False,
+        who: Principal = Depends(require("admin")),
+    ) -> dict[str, Any]:
+        from sentinel.retention import collect_garbage
+
+        rep = collect_garbage(settings, engine, older_than_days=older_than_days, dry_run=dry_run)
+        audit(who, "admin.gc", None, older_than_days=older_than_days, dry_run=dry_run)
+        return {k: v for k, v in rep.__dict__.items() if k != "details"} | {
+            "details": rep.details[:50]
+        }
+
+    @app.get("/api/v1/audit-log")
+    def audit_log(limit: int = 100, _: Principal = Depends(require("admin"))) -> dict[str, Any]:
+        with session_scope(engine) as s:
+            rows = s.exec(
+                select(AuditLog).order_by(col(AuditLog.at).desc()).limit(min(limit, 500))
+            ).all()
+            return {
+                "items": [
+                    {
+                        "at": r.at.isoformat(),
+                        "actor": r.actor,
+                        "role": r.role,
+                        "action": r.action,
+                        "target": r.target,
+                        "detail": r.detail,
+                    }
+                    for r in rows
+                ]
+            }
 
     # ------------------------------------------------------------------ dashboard
     if DASHBOARD_DIST.exists():
@@ -454,7 +590,7 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str) -> Response:
-            if full_path.startswith(("api/", "health", "ready")):
+            if full_path.startswith(("api/", "health", "ready", "metrics")):
                 raise ApiError(404, "not_found", "no such route")
             candidate = DASHBOARD_DIST / full_path
             if full_path and candidate.is_file():
@@ -472,6 +608,7 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
             }
 
     app.state.manager = mgr
+    app.state.auth = auth
     return app
 
 

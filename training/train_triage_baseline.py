@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from sentinel.triage.model import FEATURE_NAMES  # noqa: E402
+from training import mlflow_log  # noqa: E402
 
 
 def load(path: Path) -> tuple[list[list[float]], list[int]]:
@@ -104,6 +105,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     print(f"saved {out} (rows={len(X)}, positives={sum(y)}, temperature={t:.2f})")
+    with mlflow_log.run(
+        "triage-logreg", params={"epochs": a.epochs, "rows": len(X), "positives": sum(y)}
+    ):
+        mlflow_log.log_metrics({"temperature": t})
+        mlflow_log.log_artifact(out)
     return 0
 
 

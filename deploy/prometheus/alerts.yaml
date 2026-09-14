@@ -1,0 +1,58 @@
+# Prometheus alerting rules for Sentinel (item 13). Load with kube-prometheus-stack
+# `additionalPrometheusRulesMap` or plain Prometheus `rule_files`.
+groups:
+  - name: sentinel
+    rules:
+      - alert: SentinelApiDown
+        expr: up{job=~".*sentinel.*"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Sentinel API target down"
+
+      - alert: SentinelHighErrorRate
+        expr: |
+          sum(rate(sentinel_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(sentinel_http_requests_total[5m])), 0.001) > 0.05
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 5% of API requests are failing"
+
+      - alert: SentinelRunsFailing
+        expr: |
+          increase(sentinel_runs_finished_total{status="failed"}[1h])
+            > increase(sentinel_runs_finished_total{status="completed"}[1h])
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "More audit runs failed than completed in the last hour"
+
+      - alert: SentinelQueueBacklog
+        expr: sentinel_queue_depth > 10
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} runs waiting for a worker; scale workers"
+
+      - alert: SentinelLlmFailoverStorm
+        expr: sum(rate(sentinel_llm_failovers_total[10m])) > 0.2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "LLM providers are failing frequently (rate limits or outage)"
+
+      - alert: SentinelSandboxTimeouts
+        expr: |
+          sum(rate(sentinel_sandbox_execs_total{outcome="timeout"}[30m]))
+            / clamp_min(sum(rate(sentinel_sandbox_execs_total[30m])), 0.001) > 0.3
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 30% of sandbox executions time out"
+
+      - alert: SentinelSpendBudget
+        expr: increase(sentinel_llm_cost_usd_total[24h]) > 50
+        labels: { severity: info }
+        annotations:
+          summary: "LLM spend exceeded $50 in 24h"

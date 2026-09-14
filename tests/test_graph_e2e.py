@@ -199,10 +199,8 @@ def test_api_end_to_end_with_roles(tmp_path: Path) -> None:
         c.get("/api/v1/stats", headers={"X-API-Key": "bad"}).json()["error"]["code"]
         == "unauthorized"
     )
-    assert c.get("/api/v1/me", headers={"X-API-Key": "v"}).json() == {
-        "name": "viewer",
-        "role": "viewer",
-    }
+    me = c.get("/api/v1/me", headers={"X-API-Key": "v"}).json()
+    assert (me["name"], me["role"], me["via"]) == ("viewer", "viewer", "api-key")
 
     body = {"repo": str(PYREPO), "max_usd": 5, "max_minutes": 10, "max_findings": 10, "arm": "full"}
     assert c.post("/api/v1/runs", json=body, headers={"X-API-Key": "v"}).status_code == 403

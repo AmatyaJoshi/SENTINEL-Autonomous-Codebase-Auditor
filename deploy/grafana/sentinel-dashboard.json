@@ -1,0 +1,38 @@
+{
+  "title": "Sentinel",
+  "uid": "sentinel-overview",
+  "schemaVersion": 39,
+  "tags": ["sentinel"],
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {"type": "stat", "title": "Active runs", "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+     "targets": [{"expr": "sum(sentinel_runs_active)"}]},
+    {"type": "stat", "title": "Queue depth", "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+     "targets": [{"expr": "sum(sentinel_queue_depth)"}]},
+    {"type": "stat", "title": "Runs completed (24h)", "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+     "targets": [{"expr": "sum(increase(sentinel_runs_finished_total{status=\"completed\"}[24h]))"}]},
+    {"type": "stat", "title": "Runs failed (24h)", "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+     "targets": [{"expr": "sum(increase(sentinel_runs_finished_total{status=\"failed\"}[24h]))"}]},
+    {"type": "stat", "title": "LLM spend (24h, USD)", "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+     "targets": [{"expr": "sum(increase(sentinel_llm_cost_usd_total[24h]))"}]},
+    {"type": "stat", "title": "Verified bugs (24h)", "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+     "targets": [{"expr": "sum(increase(sentinel_findings_total{status=~\"verified|fixed|pr_opened|regressed\"}[24h]))"}]},
+    {"type": "timeseries", "title": "LLM calls by model", "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+     "targets": [{"expr": "sum by (model) (rate(sentinel_llm_calls_total[5m]))", "legendFormat": "{{model}}"}]},
+    {"type": "timeseries", "title": "Model failovers", "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+     "targets": [{"expr": "sum by (from_model) (rate(sentinel_llm_failovers_total[5m]))", "legendFormat": "{{from_model}}"}]},
+    {"type": "timeseries", "title": "Node duration p95", "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+     "targets": [{"expr": "histogram_quantile(0.95, sum by (le, node) (rate(sentinel_node_duration_seconds_bucket[15m])))", "legendFormat": "{{node}}"}]},
+    {"type": "timeseries", "title": "Sandbox executions by outcome", "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+     "targets": [{"expr": "sum by (outcome) (rate(sentinel_sandbox_execs_total[5m]))", "legendFormat": "{{outcome}}"}]},
+    {"type": "piechart", "title": "Findings by status (24h)", "gridPos": {"x": 0, "y": 20, "w": 8, "h": 8},
+     "targets": [{"expr": "sum by (status) (increase(sentinel_findings_total[24h]))", "legendFormat": "{{status}}"}]},
+    {"type": "barchart", "title": "Findings by category (24h)", "gridPos": {"x": 8, "y": 20, "w": 8, "h": 8},
+     "targets": [{"expr": "sum by (category) (increase(sentinel_findings_total[24h]))", "legendFormat": "{{category}}"}]},
+    {"type": "timeseries", "title": "API latency p95 / error rate", "gridPos": {"x": 16, "y": 20, "w": 8, "h": 8},
+     "targets": [
+       {"expr": "histogram_quantile(0.95, sum by (le) (rate(sentinel_http_request_seconds_bucket[5m])))", "legendFormat": "p95 s"},
+       {"expr": "sum(rate(sentinel_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(sentinel_http_requests_total[5m])), 0.001)", "legendFormat": "5xx ratio"}
+     ]}
+  ]
+}

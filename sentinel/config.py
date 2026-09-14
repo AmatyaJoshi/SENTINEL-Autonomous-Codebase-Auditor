@@ -11,6 +11,11 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Role = Literal["viewer", "operator", "admin"]
+_DEFAULT_ROLE_MAP: dict[str, Role] = {
+    "sentinel-admin": "admin",
+    "sentinel-operator": "operator",
+    "sentinel-viewer": "viewer",
+}
 
 
 class SandboxSettings(BaseModel):
@@ -71,6 +76,7 @@ class Settings(BaseSettings):
     structured_output_mode: Literal["auto", "schema", "prompt"] = "auto"
     voyage_api_key: SecretStr | None = None
     llm_cache_enabled: bool = True
+    llm_backoff_s: float = 5.0  # sleep between passes over the model pool when every model failed
 
     # github
     github_token: SecretStr | None = None
@@ -88,6 +94,20 @@ class Settings(BaseSettings):
     max_patch_lines: int = 60
     analyzers_semgrep: bool = True
 
+    # execution / retention
+    execution_mode: Literal["inline", "queue"] = "inline"
+    retention_days: int = 30
+    gc_on_startup: bool = True
+    model_prices: str = ""  # JSON, see sentinel/llm/pricing.py
+
+    # oidc (optional SSO). Role comes from `oidc_role_claim` mapped through `oidc_role_map`.
+    oidc_issuer: str | None = None
+    oidc_audience: str | None = None
+    oidc_jwks_url: str | None = None
+    oidc_role_claim: str = "groups"
+    oidc_role_map: dict[str, Role] = Field(default_factory=lambda: dict(_DEFAULT_ROLE_MAP))
+    oidc_default_role: Role = "viewer"
+
     # api
     api_host: str = "127.0.0.1"
     api_port: int = 8000
@@ -100,6 +120,42 @@ class Settings(BaseSettings):
 
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
+
+    @field_validator(
+        "anthropic_api_key",
+        "openai_api_key",
+        "deepseek_api_key",
+        "openrouter_api_key",
+        "voyage_api_key",
+        "github_token",
+        "otlp_endpoint",
+        "triage_endpoint",
+        mode="before",
+    )
+    @classmethod
+    def _empty_is_none(cls, v: Any) -> Any:
+        """`KEY=` lines in .env mean unset, not the empty string."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("oidc_role_map", mode="before")
+    @classmethod
+    def _parse_role_map(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip()
+            return json.loads(v) if v else {}
+        return v
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _resolve_secret_refs(cls, v: Any) -> Any:
+        """file:// env:// vault:// aws-sm:// gcp-sm:// references become their values (sentinel.secrets)."""
+        from sentinel.secrets import is_reference, resolve
+
+        if isinstance(v, str) and is_reference(v):
+            return resolve(v)
+        return v
 
     @field_validator("api_keys", mode="before")
     @classmethod
@@ -145,7 +201,7 @@ class Settings(BaseSettings):
                 "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
             ]
         ),
-        "fallback": "openrouter/free",
+        "fallback": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
     }
 
     def has_key_for(self, model: str) -> bool:

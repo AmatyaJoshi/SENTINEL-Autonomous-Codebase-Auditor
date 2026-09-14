@@ -22,6 +22,8 @@ from typing import Any
 
 import yaml
 
+from training import mlflow_log
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "base_model": "Qwen/Qwen2.5-Coder-1.5B",
     "data_dir": "training/data",
@@ -155,7 +157,8 @@ def main(argv: list[str] | None = None) -> int:
         eval_strategy="epoch" if ds_val else "no",
         save_strategy="epoch",
         save_total_limit=2,
-        report_to=["wandb"] if __import__("os").environ.get("WANDB_API_KEY") else [],
+        report_to=(["wandb"] if __import__("os").environ.get("WANDB_API_KEY") else [])
+        + (["mlflow"] if mlflow_log.enabled() else []),
         seed=int(cfg["seed"]),
     )
     trainer = WeightedTrainer(

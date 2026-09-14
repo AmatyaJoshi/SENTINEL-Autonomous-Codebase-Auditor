@@ -24,6 +24,7 @@ from sentinel.graph.build import build_graph, initial_state, open_checkpointer
 from sentinel.graph.state import NODE_ORDER, AuditState, Budget, Finding
 from sentinel.llm.router import Backend, CallStats, LLMRouter
 from sentinel.sandbox.docker_runner import DockerRunner
+from sentinel.telemetry import metrics
 from sentinel.telemetry.otel import span
 from sentinel.tools.context import RunContext
 
@@ -157,7 +158,7 @@ class RunManager:
         )
         graph = build_graph(
             ctx,
-            checkpointer=open_checkpointer(self.settings.work_dir),
+            checkpointer=open_checkpointer(self.settings.work_dir, self.settings.database_url),
             interrupt_before_report=ctx.review,
         )
         with self._lock:
@@ -206,7 +207,7 @@ class RunManager:
             )
             graph = build_graph(
                 ctx,
-                checkpointer=open_checkpointer(self.settings.work_dir),
+                checkpointer=open_checkpointer(self.settings.work_dir, self.settings.database_url),
                 interrupt_before_report=ctx.review,
             )
             with self._lock:
@@ -297,6 +298,8 @@ class RunManager:
         cfg.setdefault("configurable", {})["thread_id"] = run.id
         cfg["max_concurrency"] = self.settings.hunt_concurrency
         self._set_status(run.id, "running")
+        metrics.RUNS_STARTED.labels(arm=run.arm).inc()
+        metrics.RUNS_ACTIVE.inc()
         ctx.emit("run.status", {"status": "running", "current_node": "ingest", "progress": 0.0})
         budget = Budget.model_validate(run.budget) if run.budget else self._default_budget()
         inp: AuditState | None = None if config else initial_state(run.id, run.repo_url, budget)
@@ -339,8 +342,12 @@ class RunManager:
             )
             ctx.emit("log", {"level": "error", "message": f"run failed: {type(e).__name__}: {e}"})
         finally:
+            metrics.RUNS_ACTIVE.dec()
             r = self.get(run.id)
             if r is not None:
+                metrics.RUNS_FINISHED.labels(status=r.status).inc()
+                for f in self.findings(run.id):
+                    metrics.FINDINGS.labels(status=f.status, category=f.category).inc()
                 ctx.emit("run.end", run_to_dict(r))
             if ctx.store is not None:
                 with contextlib.suppress(Exception):
@@ -363,6 +370,18 @@ class RunManager:
         )
 
     def _on_event(self, run_id: str, type_: str, data: dict[str, Any]) -> None:
+        if type_ == "node.end" and data.get("duration_s") is not None:
+            metrics.NODE_DURATION.labels(node=data["node"]).observe(float(data["duration_s"]))
+        if type_ == "sandbox.exec":
+            outcome = (
+                "timeout"
+                if data.get("timed_out")
+                else ("ok" if data.get("exit_code") == 0 else "fail")
+            )
+            metrics.SANDBOX_EXECS.labels(node=data.get("node", "?"), outcome=outcome).inc()
+            metrics.SANDBOX_DURATION.labels(node=data.get("node", "?")).observe(
+                float(data.get("duration_s", 0))
+            )
         if type_ not in ("node.start", "node.end", "finding.new", "finding.update", "llm.call"):
             return
         with session_scope(self.engine) as s:

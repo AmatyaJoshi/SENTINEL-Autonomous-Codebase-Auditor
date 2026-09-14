@@ -40,5 +40,10 @@ def configure_logging(settings: Settings) -> None:
         )
     root.addHandler(handler)
     root.setLevel(settings.log_level.upper())
-    for noisy in ("httpx", "httpcore", "LiteLLM", "litellm", "urllib3", "docker", "git"):
+    for noisy in ("httpx", "httpcore", "urllib3", "docker", "git"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    # LiteLLM's async logging worker is chatty when called from threads; Sentinel records its own
+    # per-call metrics/spans, so only real errors from the provider layer are useful.
+    for noisy in ("LiteLLM", "litellm", "LiteLLM Router", "LiteLLM Proxy"):
+        logging.getLogger(noisy).setLevel(logging.ERROR)
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL)

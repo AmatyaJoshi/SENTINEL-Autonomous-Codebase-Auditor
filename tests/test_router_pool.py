@@ -39,6 +39,7 @@ def test_model_pool_rotates_on_failure(tmp_path: Path) -> None:
         database_url="sqlite://",
         work_dir=tmp_path,
         openrouter_api_key="k",  # type: ignore[arg-type]
+        llm_backoff_s=0.0,
         primary_model="openrouter/a:free, openrouter/b:free",
         cheap_model="openrouter/c:free",
     )

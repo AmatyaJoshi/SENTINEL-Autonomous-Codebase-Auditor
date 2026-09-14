@@ -76,6 +76,22 @@ def index_node(state: AuditState, ctx: RunContext) -> AuditState:
 
 def analyze_node(state: AuditState, ctx: RunContext) -> AuditState:
     adapters = default_adapters(include_semgrep=ctx.settings.analyzers_semgrep)
+    # TypeScript repos rarely have node_modules on the host; when the sandbox image is ready, run
+    # eslint/tsc inside it instead of skipping them (network stays disabled).
+    if (
+        ctx.language in ("typescript", "mixed")
+        and ctx.sandbox_ready()
+        and ctx.sandbox is not None
+        and ctx.sandbox_image is not None
+        and ctx.workspace is not None
+        and not (ctx.repo_path / "node_modules").exists()
+    ):
+        from sentinel.analyzers.node_sandbox import SandboxEslintAdapter, SandboxTscAdapter
+
+        adapters = [a for a in adapters if a.name not in ("eslint", "tsc")] + [
+            SandboxEslintAdapter(ctx.sandbox, ctx.sandbox_image, ctx.workspace),
+            SandboxTscAdapter(ctx.sandbox, ctx.sandbox_image, ctx.workspace),
+        ]
     results = run_all(ctx.repo_path, ctx.language, adapters)
     ctx.analyzer_findings = [f for r in results for f in r.findings]
     errors = [f"analyzer {r.tool}: {r.error}" for r in results if not r.ok]

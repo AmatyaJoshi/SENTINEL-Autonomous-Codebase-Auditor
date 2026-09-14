@@ -21,7 +21,9 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from sentinel.config import Settings
+from sentinel.llm.pricing import PriceTable, estimate_tokens
 from sentinel.llm.schemas import Tier
+from sentinel.telemetry import metrics
 from sentinel.telemetry.otel import span
 
 T = TypeVar("T", bound=BaseModel)
@@ -130,7 +132,6 @@ class LiteLLMBackend:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "num_retries": 2,
-            "fallbacks": [self._fallback] if self._fallback and self._fallback != model else None,
         }
         if response_schema is not None:
             kwargs["response_format"] = response_schema
@@ -287,6 +288,7 @@ class LLMRouter:
         self.total_calls = 0
         self._warned_substitution = False
         self._pool_offset: dict[str, int] = {}
+        self._prices = PriceTable(settings.model_prices)
         self._cache = (
             _ResponseCache(settings.work_dir / "cache" / "llm.sqlite")
             if settings.llm_cache_enabled and backend is None
@@ -318,6 +320,7 @@ class LLMRouter:
             return
         nxt = (pool.index(failed_model) + 1) % len(pool) if failed_model in pool else 0
         self._pool_offset[key] = nxt
+        metrics.LLM_FAILOVERS.labels(from_model=failed_model).inc()
         logging.getLogger("sentinel.llm").warning(
             "model %s failed (%s); rotating to %s", failed_model, reason[:120], pool[nxt]
         )
@@ -361,24 +364,39 @@ class LLMRouter:
             with span("sentinel.llm", node=prompt_name) as s:
                 resp = None
                 last_exc: Exception | None = None
-                for candidate in pool:
-                    try:
-                        resp = self.backend.complete(
-                            candidate,
-                            messages,
-                            response_schema=response_schema,
-                            tools=tools,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                        )
-                        model = candidate
+                # Up to 3 passes over the pool with growing backoff: free tiers rate-limit in bursts,
+                # so a model that failed 10 s ago is often fine on the next pass.
+                for pass_no in range(3):
+                    for candidate in pool:
+                        try:
+                            resp = self.backend.complete(
+                                candidate,
+                                messages,
+                                response_schema=response_schema,
+                                tools=tools,
+                                temperature=temperature,
+                                max_tokens=max_tokens,
+                            )
+                            model = candidate
+                            break
+                        except Exception as e:  # noqa: BLE001 - rate limits, outages, bad params
+                            last_exc = e
+                            self._rotate(tier, candidate, f"{type(e).__name__}: {e}")
+                            if isinstance(e, LookupError):  # cassette miss: never retry
+                                raise
+                    if resp is not None:
                         break
-                    except Exception as e:  # noqa: BLE001 - rate limits, outages, bad params
-                        last_exc = e
-                        self._rotate(tier, candidate, f"{type(e).__name__}: {e}")
+                    time.sleep(self.settings.llm_backoff_s * (pass_no + 1))
                 if resp is None:
                     assert last_exc is not None
                     raise last_exc  # keep the original type (LookupError, RateLimitError, ...)
+                if not resp.tokens_in and not resp.tokens_out:  # provider returned no usage
+                    resp.tokens_in = estimate_tokens(messages)
+                    resp.tokens_out = estimate_tokens(resp.content or "")
+                if not resp.cost_usd:
+                    priced = self._prices.cost(model, resp.tokens_in, resp.tokens_out)
+                    if priced is not None:
+                        resp.cost_usd = priced
                 s.set_attribute("llm.model", resp.model or model)
                 s.set_attribute("llm.cost_usd", resp.cost_usd)
                 s.set_attribute("llm.tokens_in", resp.tokens_in)
@@ -391,6 +409,14 @@ class LLMRouter:
         if not cached:
             self.total_cost_usd += resp.cost_usd
         self.total_calls += 1
+        used = resp.model or model
+        metrics.LLM_CALLS.labels(
+            model=used, prompt=prompt_name or "unknown", cached=str(cached).lower()
+        ).inc()
+        if not cached:
+            metrics.LLM_COST.labels(model=used).inc(resp.cost_usd)
+            metrics.LLM_TOKENS.labels(model=used, direction="in").inc(resp.tokens_in)
+            metrics.LLM_TOKENS.labels(model=used, direction="out").inc(resp.tokens_out)
         if self.on_call:
             self.on_call(
                 CallStats(

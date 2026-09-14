@@ -26,6 +26,14 @@ jobs:
         run: uv run pytest -o addopts="" -q --timeout=600
       - name: cli smoke
         run: uv run sentinel --help
+      - name: migrations apply to a fresh database
+        env:
+          SENTINEL_DATABASE_URL: sqlite:///${{ runner.temp }}/ci.sqlite
+        run: uv run sentinel db upgrade && uv run sentinel db current
+      - name: helm chart lints
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash >/dev/null
+          helm lint deploy/helm/sentinel
 
   dashboard:
     runs-on: ubuntu-latest
@@ -43,6 +51,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
 
   image:

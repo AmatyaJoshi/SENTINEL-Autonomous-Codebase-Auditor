@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { HashRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -17,14 +17,14 @@ initApi().finally(() => {
     <StrictMode>
       <ErrorBoundary>
         <MotionConfig reducedMotion="user">
-          {/* HashRouter: works when FastAPI serves dist/ statically from "/" without SPA fallback routes. */}
-          <HashRouter>
+          {/* BrowserRouter: FastAPI serves dist/ with an SPA fallback, so deep links such as /runs/abc resolve to index.html. */}
+          <BrowserRouter>
             <SessionProvider>
               <ToastProvider>
                 <App />
               </ToastProvider>
             </SessionProvider>
-          </HashRouter>
+          </BrowserRouter>
         </MotionConfig>
       </ErrorBoundary>
     </StrictMode>,

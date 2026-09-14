@@ -425,6 +425,158 @@ def serve(
     )
 
 
+@app.command()
+def worker(
+    poll_seconds: float = 2.0,
+    concurrency: int = 1,
+) -> None:
+    """Execute queued runs (SENTINEL_EXECUTION_MODE=queue). Run several for horizontal scale."""
+    from sentinel.queue import Worker
+
+    settings = get_settings()
+    mgr = _manager(settings)
+    w = Worker(mgr, poll_seconds=poll_seconds, concurrency=concurrency)
+    console.print(f"[bold]worker[/] {w.worker_id} polling every {poll_seconds}s (ctrl-c to stop)")
+    try:
+        w.serve_forever()
+    except KeyboardInterrupt:
+        w.stop()
+
+
+@app.command()
+def gc(
+    older_than_days: Annotated[
+        int | None, typer.Option(help="Default: SENTINEL_RETENTION_DAYS")
+    ] = None,
+    dry_run: bool = False,
+    drop_reports: Annotated[bool, typer.Option(help="Also delete report.* files")] = False,
+) -> None:
+    """Delete finished runs, workspaces, events and stale clones older than the retention window."""
+    from sentinel.db.session import get_engine
+    from sentinel.retention import collect_garbage
+
+    settings = get_settings()
+    rep = collect_garbage(
+        settings,
+        get_engine(settings),
+        older_than_days=older_than_days,
+        dry_run=dry_run,
+        keep_reports=not drop_reports,
+    )
+    t = Table(title=f"gc {'(dry run)' if dry_run else ''}", show_header=False)
+    for k in (
+        "runs_deleted",
+        "workspaces_removed",
+        "run_dirs_removed",
+        "clones_removed",
+        "events_deleted",
+        "kept_runs",
+    ):
+        t.add_row(k, str(getattr(rep, k)))
+    t.add_row("freed", f"{rep.bytes_freed / 1e6:.1f} MB")
+    console.print(t)
+
+
+db_app = typer.Typer(help="Database schema management (Alembic).")
+app.add_typer(db_app, name="db")
+
+
+@db_app.command("upgrade")
+def db_upgrade(revision: str = "head") -> None:
+    """Apply migrations (stamps existing create_all databases at head first)."""
+    from sentinel.db.migrate import current_revision, upgrade
+    from sentinel.db.session import get_engine
+
+    settings = get_settings()
+    engine = get_engine(settings)
+    upgrade(engine, settings.database_url, revision)
+    console.print(f"[green]database at revision[/] {current_revision(engine)}")
+
+
+@db_app.command("downgrade")
+def db_downgrade(revision: str) -> None:
+    from sentinel.db.migrate import downgrade
+
+    downgrade(get_settings().database_url, revision)
+    console.print(f"[yellow]downgraded to[/] {revision}")
+
+
+@db_app.command("revision")
+def db_revision(message: Annotated[str, typer.Option("-m", "--message")]) -> None:
+    """Autogenerate a migration from model changes (developer command)."""
+    from sentinel.db.migrate import autogenerate
+
+    autogenerate(get_settings().database_url, message)
+    console.print("[green]migration written[/] under sentinel/db/migrations/versions/")
+
+
+@db_app.command("current")
+def db_current() -> None:
+    from sentinel.db.migrate import current_revision, head_revision
+    from sentinel.db.session import get_engine
+
+    settings = get_settings()
+    console.print(
+        f"current={current_revision(get_engine(settings))} head={head_revision(settings.database_url)}"
+    )
+
+
+keys_app = typer.Typer(help="Manage database-backed API keys.")
+app.add_typer(keys_app, name="keys")
+
+
+@keys_app.command("create")
+def keys_create(name: str, role: str = "viewer", expires_days: int | None = None) -> None:
+    from sentinel.api.auth import Authenticator
+    from sentinel.db.session import get_engine, init_db
+
+    settings = get_settings()
+    engine = get_engine(settings)
+    init_db(engine)
+    raw, rec = Authenticator(settings, engine).create_key(name, role, "cli", expires_days)  # type: ignore[arg-type]
+    console.print(
+        f"[green]created[/] {rec.id} ({rec.role}) — store this key now, it is not shown again:"
+    )
+    console.print(raw, markup=False)
+
+
+@keys_app.command("list")
+def keys_list() -> None:
+    from sentinel.api.auth import Authenticator
+    from sentinel.db.session import get_engine, init_db
+
+    settings = get_settings()
+    engine = get_engine(settings)
+    init_db(engine)
+    t = Table(title="api keys")
+    for c in ("id", "name", "role", "prefix", "created", "expires", "revoked", "last used"):
+        t.add_column(c)
+    for k in Authenticator(settings, engine).list_keys():
+        t.add_row(
+            k.id[:12],
+            k.name,
+            k.role,
+            k.prefix,
+            k.created_at.strftime("%Y-%m-%d"),
+            k.expires_at.strftime("%Y-%m-%d") if k.expires_at else "-",
+            "yes" if k.revoked_at else "-",
+            k.last_used_at.strftime("%Y-%m-%d %H:%M") if k.last_used_at else "-",
+        )
+    console.print(t)
+
+
+@keys_app.command("revoke")
+def keys_revoke(key_id: str) -> None:
+    from sentinel.api.auth import Authenticator
+    from sentinel.db.session import get_engine
+
+    settings = get_settings()
+    ok = Authenticator(settings, get_engine(settings)).revoke_key(key_id)
+    console.print("[green]revoked[/]" if ok else "[red]not found or already revoked[/]")
+    if not ok:
+        raise typer.Exit(code=1)
+
+
 @app.command("init-db")
 def init_db_cmd() -> None:
     """Create database tables for the configured DATABASE_URL."""

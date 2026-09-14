@@ -1,0 +1,62 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sentinel.fullname" . }}-worker
+  labels: {{- include "sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sentinel.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels: {{- include "sentinel.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["worker"]
+          env: {{- include "sentinel.env" . | nindent 12 }}
+            {{- if .Values.worker.dind.enabled }}
+            - name: DOCKER_HOST
+              value: tcp://127.0.0.1:2375
+            {{- end }}
+          envFrom:
+            - secretRef: { name: {{ .Values.secrets.existingSecret }} }
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts: [{ name: data, mountPath: /data }]
+        {{- if .Values.worker.dind.enabled }}
+        # Sandboxes run as sibling containers of this rootless daemon; the audited code never runs
+        # in the worker container itself. The daemon is reachable only on the pod's loopback.
+        - name: dind
+          image: {{ .Values.worker.dind.image }}
+          securityContext:
+            privileged: true   # required by dind even in rootless mode; isolate via node pool/taints
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          args: ["--host=tcp://127.0.0.1:2375"]
+          volumeMounts: [{ name: dind-storage, mountPath: /home/rootless/.local/share/docker }]
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "sentinel.fullname" . }}-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.worker.dind.enabled }}
+        - name: dind-storage
+          emptyDir: { sizeLimit: {{ .Values.worker.dind.storage }} }
+        {{- end }}
+{{- end }}

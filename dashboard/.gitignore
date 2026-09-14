@@ -3,3 +3,6 @@ dist
 dist-ssr
 *.local
 .eslintcache
+coverage
+playwright-report
+test-results

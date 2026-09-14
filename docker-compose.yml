@@ -17,12 +17,37 @@ services:
       SENTINEL_OPENAI_API_KEY: ${SENTINEL_OPENAI_API_KEY:-}
       SENTINEL_GITHUB_TOKEN: ${SENTINEL_GITHUB_TOKEN:-}
       SENTINEL_API_CORS_ORIGINS: ${SENTINEL_API_CORS_ORIGINS:-http://localhost:8000}
+      SENTINEL_OPENROUTER_API_KEY: ${SENTINEL_OPENROUTER_API_KEY:-}
+      SENTINEL_EXECUTION_MODE: ${SENTINEL_EXECUTION_MODE:-inline}
       SENTINEL_ENVIRONMENT: prod
     ports:
       - "8000:8000"
     volumes:
       - sentinel-data:/data
       # Sandboxes are sibling containers; the socket is the only privilege this service needs.
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  # Optional: horizontal execution. Set SENTINEL_EXECUTION_MODE=queue on `sentinel` and scale this.
+  worker:
+    build: .
+    image: sentinel:local
+    command: ["worker"]
+    profiles: ["queue"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:sentinel@postgres:5432/sentinel
+      SENTINEL_OTLP_ENDPOINT: http://jaeger:4317
+      SENTINEL_WORK_DIR: /data
+      SENTINEL_OPENROUTER_API_KEY: ${SENTINEL_OPENROUTER_API_KEY:-}
+      SENTINEL_ANTHROPIC_API_KEY: ${SENTINEL_ANTHROPIC_API_KEY:-}
+      SENTINEL_OPENAI_API_KEY: ${SENTINEL_OPENAI_API_KEY:-}
+      SENTINEL_GITHUB_TOKEN: ${SENTINEL_GITHUB_TOKEN:-}
+      SENTINEL_ENVIRONMENT: prod
+    volumes:
+      - sentinel-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 

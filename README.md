@@ -118,6 +118,8 @@ Results are appended to [bench/RESULTS.md](bench/RESULTS.md) with date and commi
 
 **Numbers reported here are measured, never estimated.** No benchmark has been run yet with a live
 LLM; the table is empty until the nightly job runs with `BENCH_ENABLED=true` and an API key.
+Mutation is coverage-guided when the sandbox can produce coverage (coverage.py / c8 / vitest lcov);
+otherwise the "a test must fail on the mutant" check is the sole filter and the manifest says so.
 
 ## Triage classifier
 
@@ -128,6 +130,12 @@ and reports sandbox runs avoided. Until a model is trained, `sentinel.triage.mod
 supplies calibrated per-category priors.
 
 ## Enterprise operation
+
+See [docs/OPERATIONS.md](docs/OPERATIONS.md) for the full runbook: queue mode with `sentinel worker`
+for multi-replica deployments, database-managed API keys with rotation, OIDC/SSO, secret references
+(Vault, AWS/GCP Secrets Manager, mounted files), Alembic migrations (`sentinel db upgrade`), retention
+(`sentinel gc`), Prometheus `/metrics` with alert rules and a Grafana dashboard, request IDs, and the
+Helm chart under `deploy/`.
 
 - **Isolation:** Docker-only sandbox, `--network none`, read-only root FS, all capabilities dropped,
   unprivileged UID, memory/CPU/pid limits, hard timeouts. No host execution path exists. See
@@ -170,7 +178,7 @@ supplies calibrated per-category priors.
 | 3 | graph plan → hunt → verify, tools, prompts, checkpointer, budget guard, replay | done (end-to-end with scripted LLM) |
 | 4 | fix → regress → rank → report → PR | done (PR path needs a GitHub token) |
 | 5 | benchmark harness, 4 arms, nightly small suite | done (harness tested end-to-end on the fixture; real numbers pending) |
-| 6 | telemetry spans, API, dashboard | done |
+| 6 | telemetry spans, API, dashboard | done (Prometheus metrics, OIDC, DB API keys, queue/worker mode, Helm chart added) |
 | 7 | triage dataset, LoRA + baseline training, eval, router integration | scripts done; model not yet trained (needs ≥ 3k labelled candidates) |
 | 8 | polish, GIF demo, real PR screenshots | pending |
 

@@ -32,7 +32,30 @@ npm run lint           # eslint (flat config, typescript-eslint, react-hooks)
 npm run build          # typecheck + vite build -> dashboard/dist
 ```
 
-`vite.config.ts` sets `base: "./"` so `dist/` can be mounted by FastAPI at `/` (or any sub-path). Routing uses the URL hash (`/#/runs/abc`) so no SPA fallback route is needed on the server.
+`vite.config.ts` sets `base: "/"`: the FastAPI backend serves `dashboard/dist` from `/` with static assets under `/assets` and an SPA fallback route (any non-`/api` path returns `index.html`). Routing uses `BrowserRouter`, so deep links such as `/runs/abc` work when pasted directly into the address bar. The Vite dev server provides the same history fallback out of the box.
+
+## Test
+
+```bash
+npm test               # vitest run (jsdom + Testing Library)
+npm run test:watch     # vitest in watch mode
+npm run test:coverage  # v8 coverage report in coverage/
+```
+
+Unit and component tests live next to their sources as `*.test.ts(x)` under `src/`; shared fixtures and the jsdom setup (jest-dom matchers, `matchMedia`/`ResizeObserver` stubs) are in `src/test/`. Coverage includes the formatting helpers, the HTTP client (mocked `fetch`), the in-memory mock server (sequence-numbered events, `Last-Event-ID` replay, decisions, cancel), `useRunEvents` (SSE to polling fallback with fake timers), `PipelineGraph`, `FindingDrawer`, `RunDetail` approve/reject gating, and a smoke render of every page through the real `App` under the mock client.
+
+### End-to-end (Playwright)
+
+```bash
+npm run e2e:install    # one-time: downloads Chromium
+npm run e2e            # boots vite with VITE_MOCK=1 on :5175 and runs e2e/smoke.spec.ts
+```
+
+The smoke suite checks that the five pages plus the 404 page render, that a hard navigation to a `/runs/:id` deep link resolves, and that the seeded live run's pipeline graph progresses. Set `E2E_PORT` to use a different port.
+
+### CI
+
+The `dashboard` job in `.github/workflows/ci.yml` runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` on every push and pull request. The Playwright suite is not part of CI.
 
 ## Authentication
 

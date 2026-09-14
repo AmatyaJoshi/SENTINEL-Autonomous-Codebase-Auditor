@@ -144,10 +144,29 @@ def build_graph(
     )
 
 
-def open_checkpointer(work_dir: Path) -> BaseCheckpointSaver:  # type: ignore[type-arg]
+def open_checkpointer(work_dir: Path, database_url: str | None = None) -> BaseCheckpointSaver:  # type: ignore[type-arg]
+    """SqliteSaver for dev; PostgresSaver (langgraph-checkpoint-postgres) when DATABASE_URL is Postgres,
+    so several API/worker replicas share checkpoints and `replay` works from any of them."""
+    if database_url and database_url.startswith("postgresql"):
+        try:
+            from langgraph.checkpoint.postgres import PostgresSaver
+            from psycopg import Connection
+            from psycopg.rows import dict_row
+
+            conn = Connection.connect(
+                database_url.replace("postgresql+psycopg://", "postgresql://"),
+                autocommit=True,
+                prepare_threshold=0,
+                row_factory=dict_row,
+            )
+            saver = PostgresSaver(conn, serde=_serde())
+            saver.setup()
+            return cast(BaseCheckpointSaver, saver)  # type: ignore[type-arg]
+        except ImportError as e:  # pragma: no cover - needs the postgres extra
+            raise RuntimeError("install the `postgres` extra for PostgresSaver") from e
     work_dir.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(work_dir / "checkpoints.sqlite", check_same_thread=False)
-    return SqliteSaver(conn, serde=_serde())
+    conn_s = sqlite3.connect(work_dir / "checkpoints.sqlite", check_same_thread=False)
+    return SqliteSaver(conn_s, serde=_serde())
 
 
 def _serde() -> Any:
