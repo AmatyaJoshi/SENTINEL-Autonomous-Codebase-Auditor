@@ -214,6 +214,45 @@ def test_gc_removes_old_runs_but_keeps_reports(tmp_path: Path) -> None:
     assert not stale_clone.exists()
 
 
+# --------------------------------------------------------------------------- rate limiting
+def test_db_rate_limit_is_shared_across_replicas(tmp_path: Path) -> None:
+    """Two API apps on one database (two replicas) must enforce ONE combined budget per caller."""
+    mgr = _manager(tmp_path, api_rate_limit_per_minute=4, api_rate_limit_backend="db")
+    init_db(mgr.engine)
+    replica_a = TestClient(create_app(mgr.settings, manager=mgr))
+    replica_b = TestClient(create_app(mgr.settings, manager=mgr))
+    assert replica_a.get("/health").json()["checks"]["rate_limit"] == "db"
+    codes = []
+    for i in range(6):
+        c = replica_a if i % 2 == 0 else replica_b
+        codes.append(c.get("/api/v1/me").status_code)
+    assert codes == [200, 200, 200, 200, 429, 429], codes
+    r = replica_b.get("/api/v1/me")
+    assert r.status_code == 429 and 1 <= int(r.headers["Retry-After"]) <= 61
+    # a different caller has its own budget, and the credential is stored hashed
+    assert replica_a.get("/api/v1/me", headers={"X-API-Key": "someone-else"}).status_code in (
+        200,
+        401,
+    )
+    from sqlmodel import select as sm_select
+
+    from sentinel.db.models import RateLimitBucket
+
+    with session_scope(mgr.engine) as s:
+        keys = [b.key for b in s.exec(sm_select(RateLimitBucket)).all()]
+    assert keys and all(len(k) == 64 for k in keys) and "someone-else" not in keys
+
+
+def test_rate_limit_backend_auto_follows_execution_mode(tmp_path: Path) -> None:
+    from sentinel.api.app import make_rate_limiter
+
+    inline = _settings(tmp_path)
+    queue = _settings(tmp_path, execution_mode="queue")
+    engine = create_engine(inline.database_url)
+    assert make_rate_limiter(inline, engine).kind == "memory"
+    assert make_rate_limiter(queue, engine).kind == "db"
+
+
 # --------------------------------------------------------------------------- migrations
 def test_alembic_upgrade_and_stamp(tmp_path: Path) -> None:
     from sentinel.db.migrate import current_revision, head_revision, upgrade
@@ -232,6 +271,18 @@ def test_alembic_upgrade_and_stamp(tmp_path: Path) -> None:
     SQLModel.metadata.create_all(engine2)
     upgrade(engine2, url2)
     assert current_revision(engine2) == head_revision(url2)
+    # a legacy DB from BEFORE later revisions (missing their tables) gets them on upgrade
+    url3 = f"sqlite:///{(tmp_path / 'older.sqlite').as_posix()}"
+    engine3 = create_engine(url3)
+    SQLModel.metadata.create_all(
+        engine3,
+        tables=[t for n, t in SQLModel.metadata.tables.items() if n != "rate_limit_buckets"],
+    )
+    upgrade(engine3, url3)
+    from sqlalchemy import inspect
+
+    assert "rate_limit_buckets" in inspect(engine3).get_table_names()
+    assert current_revision(engine3) == head_revision(url3)
 
 
 # --------------------------------------------------------------------------- coverage

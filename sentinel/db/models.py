@@ -141,3 +141,14 @@ class AuditLog(SQLModel, table=True):
     action: str
     target: str | None = None
     detail: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class RateLimitBucket(SQLModel, table=True):
+    """Fixed one-minute request windows per caller, shared by every API replica when the
+    rate-limit backend is `db`. `key` is a SHA-256 of the credential, never the credential."""
+
+    __tablename__ = "rate_limit_buckets"
+
+    key: str = Field(primary_key=True)
+    window: int = Field(primary_key=True)
+    hits: int = 0

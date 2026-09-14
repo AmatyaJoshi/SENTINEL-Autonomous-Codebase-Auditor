@@ -6,3 +6,4 @@ dist-ssr
 coverage
 playwright-report
 test-results
+capture-out

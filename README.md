@@ -14,6 +14,16 @@ benchmark against three comparison arms, including the "single-shot LLM review" 
 **Why this is not a toy:** a finding only counts if an executable test reproduces it. Suspicions that
 fail verification are still reported, but under "unverified", never as bugs.
 
+![Sentinel dashboard tour](docs/media/demo.gif)
+
+<p align="center">
+  <img src="docs/media/run-detail.png" width="49%" alt="Live run: pipeline stages, cost gauge, activity feed">
+  <img src="docs/media/overview.png" width="49%" alt="Overview: verified bugs, fixes, PRs, cost, findings by category">
+</p>
+
+*Dashboard in demo mode (`VITE_MOCK=1`), recorded by `npm run capture` + `scripts/make_demo_gif.py`.
+Real PR screenshots will replace the demo once a run has opened one.*
+
 ---
 
 ## Architecture
@@ -100,7 +110,8 @@ npm run build                              # → dashboard/dist, picked up by `s
 
 Documented in [docs/API.md](docs/API.md); interactive docs at `/api/docs`. Authentication is by
 `X-API-Key` with roles `viewer` / `operator` / `admin`. Run events stream over SSE with
-`Last-Event-ID` replay. Every mutating call is written to the audit log.
+`Last-Event-ID` replay. Every mutating call is written to the audit log. Rate limits are enforced
+across replicas through the database in queue mode.
 
 ## Benchmark
 
@@ -180,7 +191,7 @@ Helm chart under `deploy/`.
 | 5 | benchmark harness, 4 arms, nightly small suite | done (harness tested end-to-end on the fixture; real numbers pending) |
 | 6 | telemetry spans, API, dashboard | done (Prometheus metrics, OIDC, DB API keys, queue/worker mode, Helm chart added) |
 | 7 | triage dataset, LoRA + baseline training, eval, router integration | scripts done; model not yet trained (needs ≥ 3k labelled candidates) |
-| 8 | polish, GIF demo, real PR screenshots | pending |
+| 8 | polish, GIF demo, real PR screenshots | GIF + dashboard screenshots done (demo mode); real PR screenshots need a Docker host and a GitHub token |
 
 ## License
 

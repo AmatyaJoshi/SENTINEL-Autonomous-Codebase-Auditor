@@ -16,7 +16,7 @@ server runs in **open dev mode** and every request is `admin`, with a startup wa
 
 Errors: `{"error": {"code": "unauthorized|forbidden|not_found|conflict|validation|rate_limited", "message": "..."}}`
 
-Rate limit: 120 req/min per key (429 with `Retry-After`).
+Rate limit: 120 req/min per key (429 with `Retry-After`); enforced across replicas via the database in queue mode (see docs/OPERATIONS.md).
 
 ## Endpoints
 

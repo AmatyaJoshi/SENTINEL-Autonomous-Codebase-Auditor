@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
-    "e2e:install": "playwright install chromium"
+    "e2e:install": "playwright install chromium",
+    "capture": "playwright test -c playwright.capture.config.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

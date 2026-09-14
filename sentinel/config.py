@@ -116,6 +116,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173"]
     )
     api_rate_limit_per_minute: int = 120
+    # memory: per process (sliding window). db: shared across replicas through the database
+    # (fixed one-minute windows). auto: db when execution_mode is queue, memory otherwise.
+    api_rate_limit_backend: Literal["auto", "memory", "db"] = "auto"
     max_concurrent_runs: int = 2
 
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)

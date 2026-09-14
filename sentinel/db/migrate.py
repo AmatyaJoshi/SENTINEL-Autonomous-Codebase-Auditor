@@ -32,6 +32,9 @@ def head_revision(database_url: str) -> str | None:
     return ScriptDirectory.from_config(alembic_config(database_url)).get_current_head()
 
 
+LEGACY_STAMP = "f026627a61c2"  # the revision equal to the pre-Alembic create_all schema
+
+
 def upgrade(engine: Engine, database_url: str, revision: str = "head") -> None:
     """Apply migrations. A database created by the old `create_all` path (no alembic_version) is
     stamped at head first, since its schema already matches."""
@@ -42,9 +45,10 @@ def upgrade(engine: Engine, database_url: str, revision: str = "head") -> None:
 
     tables = set(inspect(engine).get_table_names())
     if cur is None and "runs" in tables and "alembic_version" not in tables:
-        log.info("existing schema without alembic history: stamping head")
-        command.stamp(cfg, "head")
-        return
+        # The initial revision matches the old create_all schema; later revisions guard on table
+        # existence, so upgrading from there is safe whether or not create_all already made them.
+        log.info("existing schema without alembic history: stamping %s", LEGACY_STAMP)
+        command.stamp(cfg, LEGACY_STAMP)
     command.upgrade(cfg, revision)
 
 

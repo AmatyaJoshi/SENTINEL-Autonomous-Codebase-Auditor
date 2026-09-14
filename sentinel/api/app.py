@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import threading
@@ -15,20 +16,26 @@ from collections import defaultdict, deque
 from collections.abc import AsyncIterator, Callable
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy import Connection, Engine, Table
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import insert as sa_insert
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sse_starlette.sse import EventSourceResponse
 
 from sentinel import __version__
 from sentinel.api.auth import ROLE_RANK, Authenticator, Principal
 from sentinel.config import Role, Settings
-from sentinel.db.models import AuditLog, BenchResult, FindingRecord
+from sentinel.db.models import AuditLog, BenchResult, FindingRecord, RateLimitBucket
 from sentinel.db.session import get_engine, session_scope
 from sentinel.graph.state import Budget
 from sentinel.runner import RunManager, run_to_dict
@@ -44,7 +51,18 @@ class ApiError(HTTPException):
         super().__init__(status_code=status_code, detail={"code": code, "message": message})
 
 
-class _RateLimiter:
+class RateLimiter(Protocol):
+    kind: str
+
+    def check(self, key: str) -> float | None:
+        """Record one hit for `key`; return seconds to wait when over the limit, else None."""
+
+
+class MemoryRateLimiter:
+    """Sliding one-minute window, per process. Correct for a single API replica."""
+
+    kind = "memory"
+
     def __init__(self, per_minute: int) -> None:
         self.per_minute = per_minute
         self._hits: dict[str, deque[float]] = defaultdict(deque)
@@ -60,6 +78,67 @@ class _RateLimiter:
                 return 60 - (now - q[0])
             q.append(now)
         return None
+
+
+class DbRateLimiter:
+    """Fixed one-minute windows stored in `rate_limit_buckets`, so the limit is enforced across
+    every API replica that shares the database (queue mode). One UPDATE per request, an INSERT
+    on the first hit of a window; stale windows are swept every `sweep_every` checks. Credentials
+    are hashed before they touch the database."""
+
+    kind = "db"
+
+    def __init__(self, per_minute: int, engine: Engine, sweep_every: int = 200) -> None:
+        self.per_minute = per_minute
+        self.engine = engine
+        self._sweep_every = sweep_every
+        self._n = 0
+        self._lock = threading.Lock()
+
+    def check(self, key: str) -> float | None:
+        now = time.time()
+        window = int(now // 60)
+        digest = hashlib.sha256(key.encode()).hexdigest()
+        bucket = RateLimitBucket.__table__  # type: ignore[attr-defined]
+        with self.engine.begin() as conn:
+            hits = self._bump(conn, bucket, digest, window)
+        with self._lock:
+            self._n += 1
+            sweep = self._n % self._sweep_every == 0
+        if sweep:
+            with contextlib.suppress(Exception), self.engine.begin() as conn:
+                conn.execute(sa_delete(bucket).where(bucket.c.window < window - 1))
+        if hits > self.per_minute:
+            return 60 - (now % 60)
+        return None
+
+    @staticmethod
+    def _bump(conn: Connection, bucket: Table, digest: str, window: int) -> int:
+        upd = (
+            sa_update(bucket)
+            .where(bucket.c.key == digest, bucket.c.window == window)
+            .values(hits=bucket.c.hits + 1)
+        )
+        if conn.execute(upd).rowcount == 0:
+            try:
+                with conn.begin_nested():
+                    conn.execute(sa_insert(bucket).values(key=digest, window=window, hits=1))
+                return 1
+            except IntegrityError:  # another replica created the window first
+                conn.execute(upd)
+        row = conn.execute(
+            sa_select(bucket.c.hits).where(bucket.c.key == digest, bucket.c.window == window)
+        ).scalar_one()
+        return int(row)
+
+
+def make_rate_limiter(settings: Settings, engine: Engine) -> RateLimiter:
+    backend = settings.api_rate_limit_backend
+    if backend == "auto":
+        backend = "db" if settings.execution_mode == "queue" else "memory"
+    if backend == "db":
+        return DbRateLimiter(settings.api_rate_limit_per_minute, engine)
+    return MemoryRateLimiter(settings.api_rate_limit_per_minute)
 
 
 class CreateRun(BaseModel):
@@ -88,7 +167,7 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
     engine = manager.engine if manager is not None else get_engine(settings)
     mgr = manager or RunManager(settings, engine)
     auth = Authenticator(settings, engine)
-    limiter = _RateLimiter(settings.api_rate_limit_per_minute)
+    limiter = make_rate_limiter(settings, engine)
     if auth.open_mode:
         log.warning(
             "no API keys or OIDC issuer configured: API running in OPEN dev mode (every request is admin)"
@@ -223,6 +302,7 @@ def create_app(settings: Settings, manager: RunManager | None = None) -> FastAPI
                 if auth.open_mode
                 else ("oidc+api-key" if settings.oidc_issuer else "api-key"),
                 "execution": settings.execution_mode,
+                "rate_limit": limiter.kind,
             },
         }
 

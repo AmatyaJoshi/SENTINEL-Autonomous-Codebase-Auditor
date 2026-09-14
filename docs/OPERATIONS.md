@@ -21,6 +21,15 @@ Order of resolution: `Authorization: Bearer <OIDC JWT>` → `X-API-Key` (databas
   get `SENTINEL_OIDC_DEFAULT_ROLE` (viewer).
 - Every mutating call is written to `audit_log` (`GET /api/v1/audit-log`).
 
+## Rate limiting
+
+`SENTINEL_API_RATE_LIMIT_PER_MINUTE` (120) applies per credential (or per client IP in open mode).
+`SENTINEL_API_RATE_LIMIT_BACKEND`: `memory` is a per-process sliding window; `db` keeps fixed
+one-minute counters in `rate_limit_buckets` so every API replica sharing the database enforces one
+combined budget (credentials are stored as SHA-256). `auto` (default) picks `db` in queue mode and
+`memory` otherwise. `/health` reports the active backend under `checks.rate_limit`. An ingress
+limiter in front is still recommended as the first line of defence against unauthenticated floods.
+
 ## Secrets
 
 Any `SENTINEL_*` value may be a reference resolved at startup: `file:///run/secrets/x`,
