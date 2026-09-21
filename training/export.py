@@ -1,9 +1,9 @@
 """Export the merged triage model for serving (SPEC §7.4).
 
-uv run --with "torch transformers optimum onnx" python training/export.py --model .sentinel/models/triage-lora/merged --onnx
+uv run --with "torch transformers optimum onnx" python training/export.py --model .onix/models/triage-lora/merged --onnx
 # serve with vLLM and register in LiteLLM:
-#   vllm serve .sentinel/models/triage-lora/merged --served-model-name sentinel-triage --port 8001
-#   SENTINEL_TRIAGE_ENDPOINT=http://localhost:8001/v1 SENTINEL_TRIAGE_MODEL=openai/sentinel-triage
+#   vllm serve .onix/models/triage-lora/merged --served-model-name onix-triage --port 8001
+#   ONIX_TRIAGE_ENDPOINT=http://localhost:8001/v1 ONIX_TRIAGE_MODEL=openai/onix-triage
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ from pathlib import Path
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=".sentinel/models/triage-lora/merged")
+    ap.add_argument("--model", default=".onix/models/triage-lora/merged")
     ap.add_argument("--onnx", action="store_true", help="also export ONNX for CPU inference")
-    ap.add_argument("--out", default=".sentinel/models/triage-export")
+    ap.add_argument("--out", default=".onix/models/triage-export")
     a = ap.parse_args(argv)
     src = Path(a.model)
     if not src.exists():
@@ -35,8 +35,8 @@ def main(argv: list[str] | None = None) -> int:
         AutoTokenizer.from_pretrained(src).save_pretrained(out / "onnx")
         print(f"ONNX model written to {out / 'onnx'}")
     (out / "SERVE.md").write_text(
-        f"# Serving sentinel-triage\n\n```bash\nvllm serve {src} --served-model-name sentinel-triage --port 8001\n```\n"
-        "Then set `SENTINEL_TRIAGE_ENDPOINT=http://localhost:8001/v1` and `SENTINEL_TRIAGE_MODEL=openai/sentinel-triage`.\n",
+        f"# Serving onix-triage\n\n```bash\nvllm serve {src} --served-model-name onix-triage --port 8001\n```\n"
+        "Then set `ONIX_TRIAGE_ENDPOINT=http://localhost:8001/v1` and `ONIX_TRIAGE_MODEL=openai/onix-triage`.\n",
         encoding="utf-8",
     )
     print(f"wrote {out / 'SERVE.md'}")

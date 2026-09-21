@@ -8,7 +8,7 @@ Designed for one consumer GPU in < 2 h on ~3k rows.
     uv run --with "torch transformers peft datasets accelerate scikit-learn" \
         python training/train_triage_lora.py --config training/configs/qwen1.5b.yaml
 
-Heavy deps are imported lazily so the rest of Sentinel never depends on them.
+Heavy deps are imported lazily so the rest of Onix never depends on them.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from training import mlflow_log
 DEFAULT_CONFIG: dict[str, Any] = {
     "base_model": "Qwen/Qwen2.5-Coder-1.5B",
     "data_dir": "training/data",
-    "output_dir": ".sentinel/models/triage-lora",
+    "output_dir": ".onix/models/triage-lora",
     "max_len": 2048,
     "epochs": 3,
     "lr": 2e-4,

@@ -15,7 +15,7 @@ REPORTED_STATUSES = {
     "fixed",
     "pr_opened",
     "regressed",
-}  # what Sentinel *claims* as a bug
+}  # what Onix *claims* as a bug
 
 
 @dataclass

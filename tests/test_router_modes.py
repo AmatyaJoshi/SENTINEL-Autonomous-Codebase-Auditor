@@ -7,8 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from sentinel.config import Settings
-from sentinel.llm.router import LLMRouter, RawResponse, ScriptedBackend
+from onix.config import Settings
+from onix.llm.router import LLMRouter, RawResponse, ScriptedBackend
 
 
 class Out(BaseModel):

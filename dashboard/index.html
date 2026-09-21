@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="description" content="Sentinel - autonomous codebase auditor dashboard" />
+    <meta name="description" content="Onix — bugs proven by failing tests, not opinions. Autonomous codebase auditor dashboard" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Sentinel</title>
+    <title>Onix</title>
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("sentinel.theme");
+          var t = localStorage.getItem("onix.theme") || localStorage.getItem("sentinel.theme");
           if (t === "light") document.documentElement.classList.remove("dark");
           else document.documentElement.classList.add("dark");
         } catch (e) { /* ignore */ }

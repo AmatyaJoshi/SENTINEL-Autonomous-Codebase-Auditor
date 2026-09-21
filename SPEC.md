@@ -1,4 +1,4 @@
-# SENTINEL — Autonomous Codebase Auditor
+# Onix — bugs proven by failing tests, not opinions.
 ## Technical Architecture & Requirements Specification (for Claude Code)
 
 > **How to use this document:** Drop this file into the root of a new repo as `SPEC.md`, then tell Claude Code: *"Read SPEC.md fully. Build Phase 0 and Phase 1 exactly as specified. Do not skip the sandbox or the benchmark harness — they are non-negotiable. Ask before deviating from the tech stack."* Work phase by phase. Each phase has acceptance criteria that must pass before moving on.
@@ -7,9 +7,9 @@
 
 ## 0. One-paragraph pitch (for README / resume)
 
-Sentinel is a LangGraph-based multi-agent system that clones a repository, builds a semantic + structural index of the code, hunts for bugs using a combination of static analyzers and LLM reasoning, **proves each bug by writing a failing test that executes in an isolated sandbox**, generates a minimal fix, verifies the fix makes the test pass without breaking the existing suite, and opens a reviewable pull request with a full audit trail. Every agent step is traced with OpenTelemetry. Detection quality is measured on a reproducible bug-injection benchmark and on SWE-bench-style real issues, with precision/recall reported per bug category.
+Onix is a LangGraph-based multi-agent system that clones a repository, builds a semantic + structural index of the code, hunts for bugs using a combination of static analyzers and LLM reasoning, **proves each bug by writing a failing test that executes in an isolated sandbox**, generates a minimal fix, verifies the fix makes the test pass without breaking the existing suite, and opens a reviewable pull request with a full audit trail. Every agent step is traced with OpenTelemetry. Detection quality is measured on a reproducible bug-injection benchmark and on SWE-bench-style real issues, with precision/recall reported per bug category.
 
-**Why this is not a toy:** most "AI code review" projects print suggestions. Sentinel is held to the standard of *executable proof* — a finding only counts if a test reproduces it. That single design decision is what you will talk about in interviews.
+**Why this is not a toy:** most "AI code review" projects print suggestions. Onix is held to the standard of *executable proof* — a finding only counts if a test reproduces it. That single design decision is what you will talk about in interviews.
 
 ---
 
@@ -30,7 +30,7 @@ Sentinel is a LangGraph-based multi-agent system that clones a repository, build
 - No security pentesting or exploit generation. Security *smells* (hardcoded secrets, SQL string concatenation, unsafe `eval`) are in scope; exploit code is not.
 
 ### 1.3 Definition of done (project level)
-- `sentinel audit https://github.com/<org>/<repo>` runs end-to-end on at least 3 real repos including a 50k+ LOC TS repo.
+- `onix audit https://github.com/<org>/<repo>` runs end-to-end on at least 3 real repos including a 50k+ LOC TS repo.
 - Benchmark harness produces a `report.html` and `report.json` with the metrics in §8.
 - ≥ 0.70 precision on injected-bug benchmark (target ≥ 0.80), recall reported honestly whatever it is.
 - At least 5 real PRs opened on your own forks (screenshots for README).
@@ -44,7 +44,7 @@ Sentinel is a LangGraph-based multi-agent system that clones a repository, build
 ```
                 ┌──────────────────────────────────────────────────────┐
                 │                    CLI / FastAPI                     │
-                │        sentinel audit | bench | serve | replay       │
+                │        onix audit | bench | serve | replay       │
                 └───────────────────────┬──────────────────────────────┘
                                         │
                 ┌───────────────────────▼──────────────────────────────┐
@@ -80,19 +80,19 @@ Sentinel is a LangGraph-based multi-agent system that clones a repository, build
 | Observability | OpenTelemetry SDK + **OpenLLMetry (Traceloop SDK)** exporting OTLP → Project 2 collector; fallback to Jaeger | Your OSS contribution, made visible |
 | Storage | SQLite (dev) / Postgres 16 (prod) via SQLModel | Runs, findings, benchmark results |
 | API/UI | FastAPI + minimal Next.js dashboard (optional, Phase 6) | Show live graph execution |
-| Config | `pydantic-settings`, `.env`, `sentinel.yaml` per repo | |
+| Config | `pydantic-settings`, `.env`, `onix.yaml` per repo | |
 | Testing | pytest, pytest-asyncio, hypothesis, VCR-style LLM response cassettes | Deterministic CI |
 | CI | GitHub Actions: lint, type-check, unit tests, nightly benchmark on small suite | |
-| Packaging | `uv` + `pyproject.toml`, entrypoint `sentinel` | |
+| Packaging | `uv` + `pyproject.toml`, entrypoint `onix` | |
 
 ### 2.3 Repository layout
 
 ```
-sentinel/
+onix/
 ├── SPEC.md                      # this file
 ├── CLAUDE.md                    # coding conventions for Claude Code (§11)
 ├── pyproject.toml
-├── sentinel/
+├── onix/
 │   ├── cli.py                   # typer CLI
 │   ├── config.py
 │   ├── graph/
@@ -219,7 +219,7 @@ class AuditState(TypedDict):
 
 | Node | Type | Responsibility | Output |
 |---|---|---|---|
-| `ingest` | deterministic | Clone repo at pinned SHA, detect language(s), package manager, test framework, read `sentinel.yaml` if present | `repo_path`, `language`, test config |
+| `ingest` | deterministic | Clone repo at pinned SHA, detect language(s), package manager, test framework, read `onix.yaml` if present | `repo_path`, `language`, test config |
 | `index` | deterministic | tree-sitter symbol extraction → chunks (function-level, ≤ 400 tokens, with 20-line overlap for large fns) → embeddings → pgvector; build import/call graph (networkx) | `index_ready` |
 | `analyze` | deterministic | Run all analyzer adapters in parallel; normalise to `AnalyzerFinding` (SARIF-like) | seeds for `plan` |
 | `plan` | LLM | Given repo map (file tree + top-level symbols + analyzer seed counts + git churn from `git log --stat`), produce ≤ N `HuntTarget`s ranked by expected bug density. Uses **risk heuristics**: churn × complexity × analyzer hits × low test coverage | `plan` |
@@ -238,7 +238,7 @@ class AuditState(TypedDict):
 - `verify → fix` only for `verified`; `refuted` go straight to `rank` (reported separately as "unverified suspicions" — do **not** hide them, they're useful telemetry)
 - `fix → regress → rank → report`
 - Conditional edge before every LLM node: `check_budget`. If `spent.usd > budget.max_usd` or time exceeded → jump to `rank` with partial results. Never fail silently.
-- Checkpointer: `SqliteSaver` (dev) / `PostgresSaver`. `sentinel replay <run_id> --from verify` must work.
+- Checkpointer: `SqliteSaver` (dev) / `PostgresSaver`. `onix replay <run_id> --from verify` must work.
 
 ### 3.4 Human-in-the-loop (Phase 5)
 `interrupt_before=["report"]` when `--review` flag: prints findings, waits for `y/n/edit` per finding before PR creation.
@@ -281,7 +281,7 @@ Rules baked into the system prompt of every agent:
 
 - `plan.md` — inputs: repo map, analyzer summary, churn table. Output schema: `PlanOutput{targets: HuntTarget[]}`.
 - `hunt_system.md` — the rules in §4 + category taxonomy with one-line definitions and a positive and negative example each.
-- `verify_write_test.md` — must produce a test that: imports the real module, asserts on the *specific* failure (e.g. `pytest.raises(TypeError)`), includes a comment `# SENTINEL: expected to FAIL on current code because <hypothesis>`.
+- `verify_write_test.md` — must produce a test that: imports the real module, asserts on the *specific* failure (e.g. `pytest.raises(TypeError)`), includes a comment `# ONIX: expected to FAIL on current code because <hypothesis>`.
 - `fix.md` — minimal diff, no refactors, preserve style, no new dependencies.
 - `explain.md` — human-readable finding summary for PR body.
 
@@ -299,7 +299,7 @@ Binary classification (extendable to category classification):
 - **Label:** `1` if `verify` produced a failing test that later `fix` made pass (true bug), `0` if `refuted` or the "bug" was in fact an injected no-op.
 
 ### 7.2 Data sources
-1. **Self-generated (primary):** run Sentinel with triage disabled on the benchmark *training split* (§8) and on ~20 popular OSS repos. Log every candidate → outcome. Target ≥ 3,000 labelled candidates.
+1. **Self-generated (primary):** run Onix with triage disabled on the benchmark *training split* (§8) and on ~20 popular OSS repos. Log every candidate → outcome. Target ≥ 3,000 labelled candidates.
 2. **Injected bugs:** every injected mutation is a guaranteed positive with known location — pair with hunter descriptions.
 3. **Public:** BugsInPy (Python), Defects4J-style TS analogues are thin; use SWE-bench Lite/Verified problem statements + gold patches as positives; sample random unchanged functions as hard negatives.
 4. Dedupe by repo+file+line; hold out **entire repos** for test (no leakage).
@@ -316,7 +316,7 @@ Binary classification (extendable to category classification):
 build_dataset.py   → reads DB findings table, joins outcomes, applies repo-level split → jsonl {train,val,test}
 train_triage_lora.py → HF Trainer, logs to W&B (or MLflow), saves adapter + merged model + calibration temp
 eval_triage.py     → precision/recall/F1/AUROC/Brier on test; calibration curve; compares vs (a) hunter-confidence-only, (b) codebert baseline, (c) frontier LLM zero-shot judge on the same input
-export.py          → merged model → vLLM-servable or ONNX for CPU; registered in LiteLLM router as `sentinel-triage`
+export.py          → merged model → vLLM-servable or ONNX for CPU; registered in LiteLLM router as `onix-triage`
 ```
 
 ### 7.5 Reporting (goes in README with plots)
@@ -333,8 +333,8 @@ Fine-tune `Qwen2.5-Coder-7B` with LoRA on (failing test, error log, code) → pa
 ## 8. Benchmark harness (`bench/`) — the interview centerpiece
 
 ### 8.1 Two benchmark tracks
-1. **Injected-bug track (controlled, measures precision/recall):** take clean repos with strong test suites; inject known bugs; measure whether Sentinel finds them *and* how many false positives it raises.
-2. **Real-issue track (measures real-world usefulness):** SWE-bench Lite (Python) subset of 30–50 instances + a hand-curated set of 15–20 real, already-fixed bugs from Next.js / React / Turbopack history (pick the buggy parent commit; Sentinel must find the bug the fix addressed). This is where the "demo on the repos you contributed to" story lives.
+1. **Injected-bug track (controlled, measures precision/recall):** take clean repos with strong test suites; inject known bugs; measure whether Onix finds them *and* how many false positives it raises.
+2. **Real-issue track (measures real-world usefulness):** SWE-bench Lite (Python) subset of 30–50 instances + a hand-curated set of 15–20 real, already-fixed bugs from Next.js / React / Turbopack history (pick the buggy parent commit; Onix must find the bug the fix addressed). This is where the "demo on the repos you contributed to" story lives.
 
 ### 8.2 Mutation operators (`bench/inject/`)
 Implement with tree-sitter rewrites, one mutation per injected instance, recorded in a manifest with exact location and category:
@@ -351,7 +351,7 @@ Implement with tree-sitter rewrites, one mutation per injected instance, recorde
 | `ReturnMutation` | logic_error | swap return values, return early |
 | `SecuritySmell` | security_smell | f-string SQL, hardcoded token literal |
 
-Constraints: only mutate lines covered by existing tests (measured via coverage.py / c8) **and** confirm the mutation makes ≥ 1 existing test fail (i.e. it's a real bug, not equivalent mutant). Then **remove/skip that test** before giving the repo to Sentinel — Sentinel must rediscover it. Store both the original test and the mutation for scoring.
+Constraints: only mutate lines covered by existing tests (measured via coverage.py / c8) **and** confirm the mutation makes ≥ 1 existing test fail (i.e. it's a real bug, not equivalent mutant). Then **remove/skip that test** before giving the repo to Onix — Onix must rediscover it. Store both the original test and the mutation for scoring.
 
 ### 8.3 Scoring (`bench/score.py`)
 A finding matches an injected bug if same file and line range overlaps ±5 lines (category match reported separately as strict score).
@@ -362,7 +362,7 @@ Report per run and aggregated:
 - Patch pass rate: fraction of verified bugs where `fix` + `regress` succeeded
 - Mean time and $ per repo; $ per verified bug
 - Per-category confusion matrix
-- Comparison arms: (a) analyzers only, (b) LLM single-shot review (no tools, no verify), (c) Sentinel without triage, (d) Sentinel full. **Arm (b) is essential** — it's what everyone else's project is.
+- Comparison arms: (a) analyzers only, (b) LLM single-shot review (no tools, no verify), (c) Onix without triage, (d) Onix full. **Arm (b) is essential** — it's what everyone else's project is.
 
 ### 8.4 Reproducibility
 - Pinned repo SHAs, pinned model IDs, temperature 0, seeds recorded; LLM calls cached by content hash so a re-run is free.
@@ -372,9 +372,9 @@ Report per run and aggregated:
 
 ## 9. Telemetry (bridge to Project 2 — Lens)
 
-- Initialise OpenLLMetry (`Traceloop.init(app_name="sentinel", exporter=OTLPSpanExporter(endpoint=settings.otlp_endpoint))`).
-- One root span per run (`sentinel.audit`), child span per graph node, grandchild per LLM/tool/sandbox call.
-- Custom attributes on spans: `sentinel.run_id`, `sentinel.node`, `sentinel.finding_id`, `sentinel.category`, `sentinel.outcome`, `llm.cost_usd`, `llm.prompt_version`.
+- Initialise OpenLLMetry (`Traceloop.init(app_name="onix", exporter=OTLPSpanExporter(endpoint=settings.otlp_endpoint))`).
+- One root span per run (`onix.audit`), child span per graph node, grandchild per LLM/tool/sandbox call.
+- Custom attributes on spans: `onix.run_id`, `onix.node`, `onix.finding_id`, `onix.category`, `onix.outcome`, `llm.cost_usd`, `llm.prompt_version`.
 - Emit an `evaluation` event when `verify` completes: `{finding_id, predicted_conf, outcome}` — Lens consumes this to compute calibration.
 - If no collector is configured, export to console + local Jaeger via docker-compose.
 
@@ -384,10 +384,10 @@ Report per run and aggregated:
 
 | Phase | Scope | Acceptance criteria |
 |---|---|---|
-| **0 — Skeleton** | repo layout, pyproject, CLI stub, config, DB models, CI lint/test, docker-compose (postgres+pgvector, jaeger) | `uv run sentinel --help` works; CI green |
-| **1 — Ingest + Index + Analyzers** | clone, language detect, tree-sitter symbols, chunking, embeddings, hybrid search, call graph, analyzer adapters | `sentinel index <repo>` then `sentinel search "where is auth token parsed"` returns sensible chunks; analyzers produce SARIF-normalised output on 2 repos |
+| **0 — Skeleton** | repo layout, pyproject, CLI stub, config, DB models, CI lint/test, docker-compose (postgres+pgvector, jaeger) | `uv run onix --help` works; CI green |
+| **1 — Ingest + Index + Analyzers** | clone, language detect, tree-sitter symbols, chunking, embeddings, hybrid search, call graph, analyzer adapters | `onix index <repo>` then `onix search "where is auth token parsed"` returns sensible chunks; analyzers produce SARIF-normalised output on 2 repos |
 | **2 — Sandbox** | docker runner, image build w/ lockfile cache, test runner adapters, timeouts, JUnit parsing | 20 unit tests incl. timeout, network-denied, OOM cases; runs pytest and vitest suites of sample repos |
-| **3 — Graph: plan → hunt → verify** | LangGraph state, nodes, tools, prompts, checkpointer, budget guard | On a repo with 3 hand-planted bugs, ≥ 2 verified with failing tests; `sentinel replay` works |
+| **3 — Graph: plan → hunt → verify** | LangGraph state, nodes, tools, prompts, checkpointer, budget guard | On a repo with 3 hand-planted bugs, ≥ 2 verified with failing tests; `onix replay` works |
 | **4 — fix → regress → rank → report → PR** | patch gen, regression, ranking, report.html, PR opening | 3 PRs opened on your fork with correct body template |
 | **5 — Benchmark harness** | mutation operators, manifests, scoring, 4 comparison arms, nightly small suite | `report.html` with all §8.3 metrics; small suite < 30 min |
 | **6 — Telemetry + dashboard** | OpenLLMetry spans, run viewer (FastAPI + minimal Next.js page showing live graph state) | Traces visible in Jaeger/Lens; dashboard shows node progress |
@@ -399,11 +399,11 @@ Report per run and aggregated:
 ## 11. `CLAUDE.md` (create this file verbatim in repo root)
 
 ```
-# Sentinel — conventions for Claude Code
+# Onix — conventions for Claude Code
 - Read SPEC.md before any change. Never remove the sandbox network isolation or timeouts.
-- Python 3.12, uv, ruff (line length 100), mypy --strict on sentinel/ (tests exempt).
-- Every LLM output goes through a Pydantic schema in sentinel/llm/schemas.py. No free-text parsing.
-- Prompts live in sentinel/llm/prompts/*.md and are loaded by name; never inline prompts in code.
+- Python 3.12, uv, ruff (line length 100), mypy --strict on onix/ (tests exempt).
+- Every LLM output goes through a Pydantic schema in onix/llm/schemas.py. No free-text parsing.
+- Prompts live in onix/llm/prompts/*.md and are loaded by name; never inline prompts in code.
 - Every new node/tool gets: a unit test with a recorded LLM cassette, and a span.
 - No secrets in code. Read from settings only.
 - Commit messages: conventional commits. One phase = one PR.

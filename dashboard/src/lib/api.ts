@@ -1,5 +1,5 @@
 /**
- * Sentinel API client. Mirrors docs/API.md exactly.
+ * Onix API client. Mirrors docs/API.md exactly.
  *
  * The exported `api` facade delegates to either the live HTTP client or the
  * in-memory mock server (see ./mock.ts). Mode is decided once at startup by
@@ -26,7 +26,7 @@ import type {
 } from "./types";
 import { RUN_EVENT_TYPES } from "./types";
 
-export const API_KEY_STORAGE = "sentinel.apiKey";
+export const API_KEY_STORAGE = "onix.apiKey";
 export const BASE = "/api/v1";
 
 /* ------------------------------------------------------------------ */

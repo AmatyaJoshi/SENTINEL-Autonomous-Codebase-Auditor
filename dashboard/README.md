@@ -1,6 +1,6 @@
-# Sentinel dashboard
+# Onix dashboard
 
-Single-page frontend for Sentinel, the autonomous codebase auditor. Built with Vite, React 18, TypeScript, Tailwind CSS, framer-motion, recharts and react-router. It talks to the FastAPI backend strictly via the contract in `../docs/API.md`.
+Single-page frontend for Onix (bugs proven by failing tests, not opinions). Built with Vite, React 18, TypeScript, Tailwind CSS, framer-motion, recharts and react-router. It talks to the FastAPI backend strictly via the contract in `../docs/API.md`.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ npm install
 npm run dev            # http://localhost:5173
 ```
 
-The dev server proxies `/api` and `/health` to `http://127.0.0.1:8000`, so run `sentinel serve` alongside it.
+The dev server proxies `/api` and `/health` to `http://127.0.0.1:8000`, so run `onix serve` alongside it.
 
 ### Demo mode (no backend)
 
@@ -59,7 +59,7 @@ The `dashboard` job in `.github/workflows/ci.yml` runs `npm run lint`, `npm run 
 
 ## Authentication
 
-The API key is stored in `localStorage` under `sentinel.apiKey` and sent as `X-API-Key` on every request (Settings page). When a key is present the SSE stream uses a `fetch`-based reader (browsers' `EventSource` cannot send custom headers); without a key it uses native `EventSource`. Reconnects send `Last-Event-ID`; after repeated failures the run page falls back to polling every 5 seconds.
+The API key is stored in `localStorage` under `onix.apiKey` and sent as `X-API-Key` on every request (Settings page). When a key is present the SSE stream uses a `fetch`-based reader (browsers' `EventSource` cannot send custom headers); without a key it uses native `EventSource`. Reconnects send `Last-Event-ID`; after repeated failures the run page falls back to polling every 5 seconds.
 
 ## Layout
 

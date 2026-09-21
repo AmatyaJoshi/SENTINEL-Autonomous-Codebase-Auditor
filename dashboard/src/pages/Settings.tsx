@@ -58,7 +58,7 @@ export default function Settings() {
         )}
       </Card>
 
-      <Card title="API key" subtitle={`Stored in localStorage as sentinel.apiKey and sent as X-API-Key`}>
+      <Card title="API key" subtitle={`Stored in localStorage as onix.apiKey and sent as X-API-Key`}>
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <KeyRound className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 muted" />
@@ -90,7 +90,7 @@ export default function Settings() {
             </button>
           ))}
         </div>
-        <p className="text-[11px] muted mt-2">Preference is saved in localStorage (sentinel.theme). Reduced-motion is respected automatically.</p>
+        <p className="text-[11px] muted mt-2">Preference is saved in localStorage (onix.theme). Reduced-motion is respected automatically.</p>
       </Card>
 
       {isAdmin && (

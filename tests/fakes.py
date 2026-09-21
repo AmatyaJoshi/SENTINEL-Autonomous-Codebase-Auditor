@@ -3,7 +3,7 @@
 `HostPytestSandbox` is a TEST-ONLY stand-in for DockerRunner. It runs pytest on the host against
 our own fixture repository (trusted code we wrote) so the verify → fix → regress loop can be
 exercised deterministically in CI without a Docker engine. It is never importable from the
-`sentinel` package and the production runner has no such fallback (SPEC §5).
+`onix` package and the production runner has no such fallback (SPEC §5).
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from sentinel.config import SandboxSettings
-from sentinel.llm.router import Message, RawResponse, ScriptedBackend
-from sentinel.sandbox.docker_runner import DockerRunner, ExecResult
+from onix.config import SandboxSettings
+from onix.llm.router import Message, RawResponse, ScriptedBackend
+from onix.sandbox.docker_runner import DockerRunner, ExecResult
 
 FIX = Path(__file__).parent / "fixtures"
 PYREPO = FIX / "pyrepo"
@@ -91,7 +91,7 @@ class HostPytestSandbox(DockerRunner):
 FIRST_N_TEST = """from app.auth import first_n
 
 
-# SENTINEL: expected to FAIL on current code because range(n - 1) drops the last requested item
+# ONIX: expected to FAIL on current code because range(n - 1) drops the last requested item
 def test_first_n_returns_exactly_n_items():
     assert first_n([1, 2, 3], 2) == [1, 2]
 """
@@ -221,7 +221,7 @@ def make_scripted_backend(
         if prompt == "verify_write_test":
             return _json(
                 {
-                    "test_path": "tests/test_sentinel_first_n.py",
+                    "test_path": "tests/test_onix_first_n.py",
                     "test_code": FIRST_N_TEST,
                     "expected_failure": "assertion: expected [1, 2] got [1]",
                 }

@@ -48,10 +48,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-40 glass border-x-0 border-t-0 rounded-none">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 h-14 flex items-center gap-3">
-          <NavLink to="/" className="flex items-center gap-2 shrink-0" aria-label="Sentinel home">
+          <NavLink to="/" className="flex items-center gap-2 shrink-0" aria-label="Onix home">
             <Logo />
             <span className="font-semibold tracking-tight text-[15px]">
-              Sentinel
+              Onix
               <span className="hidden sm:inline text-xs font-normal muted ml-2">autonomous codebase auditor</span>
             </span>
           </NavLink>
@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
 
       <footer className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-4 text-[11px] muted flex items-center justify-between">
-        <span>Sentinel dashboard</span>
+        <span>Onix dashboard</span>
         <span>
           Press <kbd className="kbd">/</kbd> to search
         </span>

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sentinel.graph.nodes.triage import dedupe
-from sentinel.graph.nodes.verify import failure_matches
-from sentinel.graph.state import Finding
-from sentinel.sandbox.test_runner import TestCase, TestReport
-from sentinel.triage.model import FEATURE_NAMES, HeuristicTriage, LinearTriage, featurize
+from onix.graph.nodes.triage import dedupe
+from onix.graph.nodes.verify import failure_matches
+from onix.graph.state import Finding
+from onix.sandbox.test_runner import TestCase, TestReport
+from onix.triage.model import FEATURE_NAMES, HeuristicTriage, LinearTriage, featurize
 
 
 def _f(**kw: object) -> Finding:

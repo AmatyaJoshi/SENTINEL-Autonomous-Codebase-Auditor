@@ -1681,6 +1681,128 @@ wheels = [
 ]
 
 [[package]]
+name = "onix"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "alembic" },
+    { name = "bandit" },
+    { name = "docker" },
+    { name = "fastapi" },
+    { name = "gitpython" },
+    { name = "jinja2" },
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint-sqlite" },
+    { name = "litellm" },
+    { name = "mypy" },
+    { name = "networkx" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc" },
+    { name = "opentelemetry-sdk" },
+    { name = "prometheus-client" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pygithub" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "python-multipart" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "ruff" },
+    { name = "semgrep", marker = "sys_platform != 'win32'" },
+    { name = "sqlmodel" },
+    { name = "sse-starlette" },
+    { name = "traceloop-sdk" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-javascript" },
+    { name = "tree-sitter-python" },
+    { name = "tree-sitter-typescript" },
+    { name = "typer" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+postgres = [
+    { name = "langgraph-checkpoint-postgres" },
+    { name = "pgvector" },
+    { name = "psycopg", extra = ["binary"] },
+]
+secrets = [
+    { name = "boto3" },
+    { name = "hvac" },
+]
+training = [
+    { name = "mlflow" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "hypothesis" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-timeout" },
+    { name = "types-docker" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.13" },
+    { name = "bandit", specifier = ">=1.9.4" },
+    { name = "boto3", marker = "extra == 'secrets'", specifier = ">=1.43.93" },
+    { name = "docker", specifier = ">=7.1" },
+    { name = "fastapi", specifier = ">=0.111" },
+    { name = "gitpython", specifier = ">=3.1" },
+    { name = "hvac", marker = "extra == 'secrets'", specifier = ">=2.4.0" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "langchain-core", specifier = ">=0.3" },
+    { name = "langgraph", specifier = ">=0.2" },
+    { name = "langgraph-checkpoint-postgres", marker = "extra == 'postgres'", specifier = ">=1.0" },
+    { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
+    { name = "litellm", specifier = ">=1.40" },
+    { name = "mlflow", marker = "extra == 'training'", specifier = ">=3.16.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "networkx", specifier = ">=3.3" },
+    { name = "opentelemetry-api", specifier = ">=1.25" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.25" },
+    { name = "opentelemetry-sdk", specifier = ">=1.25" },
+    { name = "pgvector", marker = "extra == 'postgres'", specifier = ">=0.3" },
+    { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pydantic-settings", specifier = ">=2.3" },
+    { name = "pygithub", specifier = ">=2.3" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
+    { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rich", specifier = ">=13.7" },
+    { name = "ruff", specifier = ">=0.16.7" },
+    { name = "semgrep", marker = "sys_platform != 'win32'", specifier = ">=1.177.0" },
+    { name = "sqlmodel", specifier = ">=0.0.21" },
+    { name = "sse-starlette", specifier = ">=2.1" },
+    { name = "traceloop-sdk", specifier = ">=0.30" },
+    { name = "tree-sitter", specifier = ">=0.25,<0.26" },
+    { name = "tree-sitter-javascript", specifier = ">=0.25.0" },
+    { name = "tree-sitter-python", specifier = ">=0.25.0" },
+    { name = "tree-sitter-typescript", specifier = ">=0.23.2" },
+    { name = "typer", specifier = ">=0.12" },
+    { name = "uvicorn", specifier = ">=0.30" },
+]
+provides-extras = ["postgres", "training", "secrets"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "hypothesis", specifier = ">=6.100" },
+    { name = "pytest", specifier = ">=8.2" },
+    { name = "pytest-asyncio", specifier = ">=0.23" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "types-docker" },
+    { name = "types-pyyaml" },
+]
+
+[[package]]
 name = "openai"
 version = "2.54.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3134,128 +3256,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1b/85/e4d39028645b7d0431d1fa88db510fe6768c5f110561ae26bb0cbcfaba0c/semgrep-1.177.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl", hash = "sha256:32d92d0cd2e18a1495b32abfef926be0ed3c972d8cd169bffe6cbb8418e3bb5e", size = 70642276, upload-time = "2026-09-10T19:45:47.668Z" },
     { url = "https://files.pythonhosted.org/packages/d1/32/5295cc2700193b7e41afbbaa7e300cbbb17ca2533821ba785ff174351799/semgrep-1.177.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-musllinux_1_2_aarch64.whl", hash = "sha256:00edda4175f71417bbfab93f060d468578eca73c81447c5ff1faa77df30628f7", size = 79641480, upload-time = "2026-09-10T19:45:51.879Z" },
     { url = "https://files.pythonhosted.org/packages/3d/f0/d0d6909a22c24e6ca0ca89814215bc40171c8b41f887d5163872f7df1adb/semgrep-1.177.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-musllinux_1_2_x86_64.whl", hash = "sha256:25df034bae3570438a39a7cb57102659b329eed62e86b3beaa8c5c0dd23932d5", size = 77234820, upload-time = "2026-09-10T19:45:55.31Z" },
-]
-
-[[package]]
-name = "sentinel"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "alembic" },
-    { name = "bandit" },
-    { name = "docker" },
-    { name = "fastapi" },
-    { name = "gitpython" },
-    { name = "jinja2" },
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "langgraph-checkpoint-sqlite" },
-    { name = "litellm" },
-    { name = "mypy" },
-    { name = "networkx" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc" },
-    { name = "opentelemetry-sdk" },
-    { name = "prometheus-client" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pygithub" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "python-multipart" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "ruff" },
-    { name = "semgrep", marker = "sys_platform != 'win32'" },
-    { name = "sqlmodel" },
-    { name = "sse-starlette" },
-    { name = "traceloop-sdk" },
-    { name = "tree-sitter" },
-    { name = "tree-sitter-javascript" },
-    { name = "tree-sitter-python" },
-    { name = "tree-sitter-typescript" },
-    { name = "typer" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-postgres = [
-    { name = "langgraph-checkpoint-postgres" },
-    { name = "pgvector" },
-    { name = "psycopg", extra = ["binary"] },
-]
-secrets = [
-    { name = "boto3" },
-    { name = "hvac" },
-]
-training = [
-    { name = "mlflow" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "hypothesis" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-timeout" },
-    { name = "types-docker" },
-    { name = "types-pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "alembic", specifier = ">=1.13" },
-    { name = "bandit", specifier = ">=1.9.4" },
-    { name = "boto3", marker = "extra == 'secrets'", specifier = ">=1.43.93" },
-    { name = "docker", specifier = ">=7.1" },
-    { name = "fastapi", specifier = ">=0.111" },
-    { name = "gitpython", specifier = ">=3.1" },
-    { name = "hvac", marker = "extra == 'secrets'", specifier = ">=2.4.0" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "langchain-core", specifier = ">=0.3" },
-    { name = "langgraph", specifier = ">=0.2" },
-    { name = "langgraph-checkpoint-postgres", marker = "extra == 'postgres'", specifier = ">=1.0" },
-    { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
-    { name = "litellm", specifier = ">=1.40" },
-    { name = "mlflow", marker = "extra == 'training'", specifier = ">=3.16.0" },
-    { name = "mypy", specifier = ">=2.3.1" },
-    { name = "networkx", specifier = ">=3.3" },
-    { name = "opentelemetry-api", specifier = ">=1.25" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.25" },
-    { name = "opentelemetry-sdk", specifier = ">=1.25" },
-    { name = "pgvector", marker = "extra == 'postgres'", specifier = ">=0.3" },
-    { name = "prometheus-client", specifier = ">=0.26.0" },
-    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic-settings", specifier = ">=2.3" },
-    { name = "pygithub", specifier = ">=2.3" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
-    { name = "python-multipart", specifier = ">=0.0.32" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rich", specifier = ">=13.7" },
-    { name = "ruff", specifier = ">=0.16.7" },
-    { name = "semgrep", marker = "sys_platform != 'win32'", specifier = ">=1.177.0" },
-    { name = "sqlmodel", specifier = ">=0.0.21" },
-    { name = "sse-starlette", specifier = ">=2.1" },
-    { name = "traceloop-sdk", specifier = ">=0.30" },
-    { name = "tree-sitter", specifier = ">=0.25,<0.26" },
-    { name = "tree-sitter-javascript", specifier = ">=0.25.0" },
-    { name = "tree-sitter-python", specifier = ">=0.25.0" },
-    { name = "tree-sitter-typescript", specifier = ">=0.23.2" },
-    { name = "typer", specifier = ">=0.12" },
-    { name = "uvicorn", specifier = ">=0.30" },
-]
-provides-extras = ["postgres", "training", "secrets"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "hypothesis", specifier = ">=6.100" },
-    { name = "pytest", specifier = ">=8.2" },
-    { name = "pytest-asyncio", specifier = ">=0.23" },
-    { name = "pytest-timeout", specifier = ">=2.4.0" },
-    { name = "types-docker" },
-    { name = "types-pyyaml" },
 ]
 
 [[package]]

@@ -25,7 +25,7 @@ cd dashboard && npm run lint && npm run typecheck && npm run build
 
 - Conventional commits (`feat(scope): ...`, `fix: ...`). One phase or feature per PR.
 - Every new graph node or tool ships with a unit test (scripted/cassette LLM, mocked Docker) and a span.
-- New LLM output shapes go in `sentinel/llm/schemas.py`; new prompts in `sentinel/llm/prompts/*.md`.
+- New LLM output shapes go in `onix/llm/schemas.py`; new prompts in `onix/llm/prompts/*.md`.
 - Never weaken `SandboxSettings` defaults or add a host execution path.
 - When a benchmark number changes, add a row to `bench/RESULTS.md` (date, commit, number).
 - Adding a dependency or changing the tech stack table in SPEC §2.2 requires discussion in the PR.

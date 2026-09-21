@@ -1,10 +1,10 @@
 """Dependency-free logistic-regression baseline on the featurized candidates (CPU, seconds).
 
-Produces `triage_logreg.json` loadable by `sentinel.triage.model.LinearTriage`, with a temperature
+Produces `triage_logreg.json` loadable by `onix.triage.model.LinearTriage`, with a temperature
 fitted on the validation split for calibration. This is baseline (a)+ in SPEC §7.4; the LoRA model in
 `train_triage_lora.py` is the headline model.
 
-    uv run python training/train_triage_baseline.py --data training/data --out .sentinel/models/triage_logreg.json
+    uv run python training/train_triage_baseline.py --data training/data --out .onix/models/triage_logreg.json
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from sentinel.triage.model import FEATURE_NAMES  # noqa: E402
+from onix.triage.model import FEATURE_NAMES  # noqa: E402
 from training import mlflow_log  # noqa: E402
 
 
@@ -75,7 +75,7 @@ def fit_temperature(w: list[float], X: list[list[float]], y: list[int]) -> float
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="training/data")
-    ap.add_argument("--out", default=".sentinel/models/triage_logreg.json")
+    ap.add_argument("--out", default=".onix/models/triage_logreg.json")
     ap.add_argument("--epochs", type=int, default=300)
     a = ap.parse_args(argv)
     data = Path(a.data)

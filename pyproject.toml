@@ -1,7 +1,7 @@
 [project]
-name = "sentinel"
-version = "0.1.0"
-description = "Autonomous codebase auditor: finds bugs, proves them with failing tests in a sandbox, fixes them, opens PRs."
+name = "onix"
+version = "0.2.0"
+description = "Onix — bugs proven by failing tests, not opinions. Autonomous codebase auditor: finds bugs, proves them with failing tests in a sandbox, fixes them, opens PRs."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }
@@ -53,7 +53,7 @@ secrets = [
 ]
 
 [project.scripts]
-sentinel = "sentinel.cli:app"
+onix = "onix.cli:app"
 
 [dependency-groups]
 dev = [
@@ -71,7 +71,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["sentinel"]
+packages = ["onix"]
 
 [tool.ruff]
 line-length = 100
@@ -84,21 +84,21 @@ select = ["E", "F", "I", "UP", "B", "SIM", "N"]
 ignore = ["E501"]  # ruff format owns line length; leftovers are string literals
 
 [tool.ruff.lint.per-file-ignores]
-"sentinel/api/*.py" = ["B008"]  # FastAPI Depends() idiom
+"onix/api/*.py" = ["B008"]  # FastAPI Depends() idiom
 "training/*.py" = ["N803", "N806"]  # X / y are the ML convention
 
 [tool.ruff.lint.isort]
-known-first-party = ["sentinel", "bench", "training"]
+known-first-party = ["onix", "bench", "training"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["sentinel"]
+packages = ["onix"]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "sentinel.db.migrations.*"
+module = "onix.db.migrations.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]

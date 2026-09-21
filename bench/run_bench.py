@@ -6,8 +6,8 @@
 Arms:
   analyzers    static analyzers only (no LLM, no verify)
   single_shot  one LLM call per file, no tools, no verify  ← "everyone else's project"
-  no_triage    Sentinel without the triage classifier
-  full         Sentinel
+  no_triage    Onix without the triage classifier
+  full         Onix
 """
 
 from __future__ import annotations
@@ -27,16 +27,16 @@ sys.path.insert(0, str(ROOT))
 
 from bench.inject.injector import Injected, Manifest, inject  # noqa: E402
 from bench.score import ArmScore, Reported, from_findings, score_instance  # noqa: E402
-from sentinel.analyzers.base import run_all  # noqa: E402
-from sentinel.analyzers.registry import default_adapters  # noqa: E402
-from sentinel.config import Settings, get_settings  # noqa: E402
-from sentinel.graph.nodes.ingest import clone_or_update, ingest  # noqa: E402
-from sentinel.sandbox.docker_runner import (  # noqa: E402
+from onix.analyzers.base import run_all  # noqa: E402
+from onix.analyzers.registry import default_adapters  # noqa: E402
+from onix.config import Settings, get_settings  # noqa: E402
+from onix.graph.nodes.ingest import clone_or_update, ingest  # noqa: E402
+from onix.sandbox.docker_runner import (  # noqa: E402
     DockerRunner,
     SandboxUnavailableError,
     make_workspace,
 )
-from sentinel.sandbox.test_runner import TestReport, run_tests  # noqa: E402
+from onix.sandbox.test_runner import TestReport, run_tests  # noqa: E402
 
 ARMS = ("analyzers", "single_shot", "no_triage", "full")
 TEMPLATE = Path(__file__).parent / "report_template.html"
@@ -63,7 +63,7 @@ def docker_executor(settings: Settings, language: str, work: Path):  # type: ign
         )
         cmd = python_coverage_command() if language == "python" else node_coverage_command(fw)
         runner.run(image, ws, cmd, timeout_s=settings.sandbox.suite_timeout_s)
-        for rel in (".sentinel/coverage.json", "coverage/lcov.info"):
+        for rel in (".onix/coverage.json", "coverage/lcov.info"):
             src = ws / rel
             if src.exists():
                 (repo / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -112,11 +112,11 @@ def arm_analyzers(
 def arm_single_shot(
     repo: Path, language: str, settings: Settings, backend: Any = None, max_files: int = 12
 ) -> tuple[list[Reported], dict[str, Any]]:
-    from sentinel.graph.nodes.plan import is_test_file
-    from sentinel.indexing.pipeline import discover_files
-    from sentinel.llm.prompts import load_prompt
-    from sentinel.llm.router import LLMRouter
-    from sentinel.llm.schemas import HuntOutput
+    from onix.graph.nodes.plan import is_test_file
+    from onix.indexing.pipeline import discover_files
+    from onix.llm.prompts import load_prompt
+    from onix.llm.router import LLMRouter
+    from onix.llm.schemas import HuntOutput
 
     t0 = time.time()
     router = LLMRouter(settings, backend=backend)
@@ -149,11 +149,11 @@ def arm_single_shot(
     }
 
 
-def arm_sentinel(
+def arm_onix(
     repo: Path, arm: str, settings: Settings, manager: Any = None
 ) -> tuple[list[Reported], dict[str, Any]]:
-    from sentinel.db.session import get_engine
-    from sentinel.runner import RunManager
+    from onix.db.session import get_engine
+    from onix.runner import RunManager
 
     mgr = manager or RunManager(settings, get_engine(settings))
     t0 = time.time()
@@ -283,7 +283,7 @@ def run_suite(
                 reported, meta = arm_single_shot(repo, inst.language, settings, backend=backend)
             else:
                 mgr = manager_factory(settings) if manager_factory else None
-                reported, meta = arm_sentinel(repo, arm, settings, manager=mgr)
+                reported, meta = arm_onix(repo, arm, settings, manager=mgr)
             row = score_instance(
                 scores[arm],
                 inst,
@@ -309,8 +309,8 @@ def run_suite(
 
 def _persist(summary: dict[str, Any], settings: Settings) -> None:
     try:
-        from sentinel.db.models import BenchResult
-        from sentinel.db.session import get_engine, init_db, session_scope
+        from onix.db.models import BenchResult
+        from onix.db.session import get_engine, init_db, session_scope
 
         engine = get_engine(settings)
         init_db(engine)

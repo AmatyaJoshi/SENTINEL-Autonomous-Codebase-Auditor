@@ -11,14 +11,14 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import BaseModel
 
-from sentinel.config import SandboxSettings, Settings
-from sentinel.llm.prompts import list_prompts, load_prompt
-from sentinel.llm.router import CassetteBackend, LLMRouter, RawResponse, ScriptedBackend
-from sentinel.llm.schemas import HuntOutput, PlanOutput
-from sentinel.sandbox.docker_runner import DockerRunner, make_workspace, strip_ansi, truncate
-from sentinel.sandbox.test_runner import parse_junit
-from sentinel.sandbox.test_runner import test_command as build_test_command
-from sentinel.tools.toolbox import apply_unified_diff, count_changed_lines, files_in_diff
+from onix.config import SandboxSettings, Settings
+from onix.llm.prompts import list_prompts, load_prompt
+from onix.llm.router import CassetteBackend, LLMRouter, RawResponse, ScriptedBackend
+from onix.llm.schemas import HuntOutput, PlanOutput
+from onix.sandbox.docker_runner import DockerRunner, make_workspace, strip_ansi, truncate
+from onix.sandbox.test_runner import parse_junit
+from onix.sandbox.test_runner import test_command as build_test_command
+from onix.tools.toolbox import apply_unified_diff, count_changed_lines, files_in_diff
 from tests.fakes import FIRST_N_PATCH, PYREPO
 
 
@@ -108,7 +108,7 @@ def test_cassette_replay_and_record(tmp_path: Path) -> None:
 
 
 def test_disk_cache_makes_rerun_free(tmp_path: Path) -> None:
-    from sentinel.llm.router import _ResponseCache
+    from onix.llm.router import _ResponseCache
 
     cache = _ResponseCache(tmp_path / "llm.sqlite")
     assert cache.get("k") is None
@@ -176,7 +176,7 @@ def test_network_setting_cannot_be_relaxed() -> None:
 
 
 def test_unavailable_engine_raises(tmp_path: Path) -> None:
-    from sentinel.sandbox.docker_runner import SandboxUnavailableError
+    from onix.sandbox.docker_runner import SandboxUnavailableError
 
     client = MagicMock()
     client.ping.side_effect = ConnectionError("no engine")
@@ -206,7 +206,7 @@ def test_build_repo_image_caches_by_lockfile_hash(tmp_path: Path) -> None:
     client.images.get.side_effect = Exception("missing")
     runner.build_repo_image(PYREPO, "python", "def456", ["pip"], tmp_path / "b2")
     dockerfile = (tmp_path / "b2" / "Dockerfile").read_text()
-    assert "FROM sentinel-base-python:3.12" in dockerfile and "USER sandbox" in dockerfile
+    assert "FROM onix-base-python:3.12" in dockerfile and "USER sandbox" in dockerfile
     assert client.images.build.call_count >= 1
 
 
@@ -224,7 +224,7 @@ def test_workspace_copy_excludes_vcs_and_deps(tmp_path: Path) -> None:
 def test_truncate_and_strip() -> None:
     assert strip_ansi("\x1b[1mbold\x1b[0m") == "bold"
     t = truncate("x" * 100, 40)
-    assert "truncated by Sentinel" in t and len(t) < 100
+    assert "truncated by Onix" in t and len(t) < 100
 
 
 # --------------------------------------------------------------------------- junit / commands
@@ -247,7 +247,7 @@ def test_parse_junit() -> None:
 
 def test_test_commands() -> None:
     assert build_test_command("pytest", ["tests/t.py"])[:3] == ["python", "-m", "pytest"]
-    assert "--junitxml=.sentinel/junit.xml" in build_test_command("pytest", None)
+    assert "--junitxml=.onix/junit.xml" in build_test_command("pytest", None)
     assert build_test_command("vitest", None)[1].endswith("vitest.mjs")
     assert "--reporters=jest-junit" in build_test_command("jest", None)
     with pytest.raises(ValueError):
@@ -271,9 +271,9 @@ def test_apply_unified_diff_roundtrip(tmp_path: Path) -> None:
 
 
 def test_toolbox_rejects_path_escape(tmp_path: Path) -> None:
-    from sentinel.llm.router import LLMRouter
-    from sentinel.tools.context import RunContext
-    from sentinel.tools.toolbox import ToolBox
+    from onix.llm.router import LLMRouter
+    from onix.tools.context import RunContext
+    from onix.tools.toolbox import ToolBox
 
     ctx = RunContext(
         run_id="r",
@@ -286,10 +286,10 @@ def test_toolbox_rejects_path_escape(tmp_path: Path) -> None:
     )
     tb = ToolBox(ctx)
     out = tb.call("read_file", json.dumps({"path": "../../pyproject.toml"}))
-    assert "PermissionError" in out and "<sentinel-data" in out
+    assert "PermissionError" in out and "<onix-data" in out
     ok = tb.call("read_file", json.dumps({"path": "app/auth.py", "start": 33, "end": 37}))
     assert "def first_n" in ok and "   35 |" in ok
-    assert tb.call("nope", "{}").startswith("<sentinel-data")
+    assert tb.call("nope", "{}").startswith("<onix-data")
     assert "ERROR: sandbox unavailable" in tb.call("run_snippet", json.dumps({"code": "print(1)"}))
     names = {t["function"]["name"] for t in tb.schemas()}
     assert {

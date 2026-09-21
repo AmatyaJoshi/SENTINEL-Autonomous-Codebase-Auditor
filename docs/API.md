@@ -1,10 +1,10 @@
-# Sentinel HTTP API (v1)
+# Onix HTTP API (v1)
 
-Base path: `/api/v1`. All JSON. Served by `sentinel serve` (FastAPI). The dashboard is served from `/`.
+Base path: `/api/v1`. All JSON. Served by `onix serve` (FastAPI). The dashboard is served from `/`.
 
 ## Authentication
 
-Header `X-API-Key: <key>` (or `?api_key=<key>` for links a browser must follow, e.g. report downloads). Keys and roles come from settings (`SENTINEL_API_KEYS`, a JSON list of
+Header `X-API-Key: <key>` (or `?api_key=<key>` for links a browser must follow, e.g. report downloads). Keys and roles come from settings (`ONIX_API_KEYS`, a JSON list of
 `{"key": "...", "name": "...", "role": "viewer|operator|admin"}`). When no keys are configured the
 server runs in **open dev mode** and every request is `admin`, with a startup warning.
 
@@ -20,7 +20,7 @@ Rate limit: 120 req/min per key (429 with `Retry-After`); enforced across replic
 
 ## Endpoints
 
-### `GET /health` → `{"status":"ok","version":"0.1.0","checks":{"db":"ok","docker":"ok|unavailable","llm":"configured|missing"}}`
+### `GET /health` → `{"status":"ok","version":"0.2.0","checks":{"db":"ok","docker":"ok|unavailable","llm":"configured|missing"}}`
 ### `GET /ready` → 200 when DB reachable, else 503.
 
 ### `GET /api/v1/stats`
@@ -56,7 +56,7 @@ Node order: ingest, index, analyze, plan, hunt, triage, verify, fix, regress, ra
 ### `GET /api/v1/runs/{id}` → `Run`
 ### `POST /api/v1/runs/{id}/cancel` (operator) → `Run`
 ### `POST /api/v1/runs/{id}/resume?from_node=verify` (operator) → `Run`
-  Resumes a checkpointed run; `from_node` rewinds to the checkpoint before that node (`sentinel replay`).
+  Resumes a checkpointed run; `from_node` rewinds to the checkpoint before that node (`onix replay`).
 ### `DELETE /api/v1/runs/{id}` (admin) → 204
 
 ### `GET /api/v1/runs/{id}/findings?status=&category=&min_confidence=`
@@ -68,7 +68,7 @@ Finding:
 {"id": "f1", "run_id": "a1b2", "category": "off_by_one", "severity": "high", "file": "app/auth.py",
  "line_start": 41, "line_end": 44, "symbol": "first_n", "description": "...", "hypothesis": "...",
  "evidence": ["ruff SIM115 ..."], "confidence": 0.78, "status": "verified",
- "test_path": "tests/test_sentinel_f1.py", "test_code": "...", "patch_diff": "--- a/...",
+ "test_path": "tests/test_onix_f1.py", "test_code": "...", "patch_diff": "--- a/...",
  "verify_log": "...", "regress_log": "...", "pr_url": null, "explanation": "one paragraph",
  "blast_radius": 4, "cost_usd": 0.31, "created_at": "..."}
 ```
@@ -107,6 +107,6 @@ Reconnect with `Last-Event-ID` to replay from a sequence number. A heartbeat com
 ### `POST /api/v1/admin/gc?older_than_days=&dry_run=` (admin) — retention sweep.
 ### `GET /api/v1/audit-log?limit=` (admin) — who did what.
 ### `GET /metrics` — Prometheus exposition (unauthenticated; restrict at the ingress).
-Bearer tokens: `Authorization: Bearer <OIDC JWT>` is accepted when `SENTINEL_OIDC_ISSUER` is set.
-Run status also includes `queued` when `SENTINEL_EXECUTION_MODE=queue`.
+Bearer tokens: `Authorization: Bearer <OIDC JWT>` is accepted when `ONIX_OIDC_ISSUER` is set.
+Run status also includes `queued` when `ONIX_EXECUTION_MODE=queue`.
 ### `GET /api/v1/me` → `{"name": "ci-bot", "role": "operator"}`

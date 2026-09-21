@@ -12,10 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import create_engine
 
-from sentinel.api.app import create_app
-from sentinel.config import ApiKey, Settings
-from sentinel.graph.state import Budget
-from sentinel.runner import RunManager
+from onix.api.app import create_app
+from onix.config import ApiKey, Settings
+from onix.graph.state import Budget
+from onix.runner import RunManager
 from tests.fakes import PYREPO, HostPytestSandbox, make_scripted_backend
 
 
@@ -69,7 +69,7 @@ def test_full_audit_finds_verifies_fixes_reports(tmp_path: Path) -> None:
     by_cat = {f.category: f for f in findings}
     bug = by_cat["off_by_one"]
     assert bug.status == "fixed", (bug.status, bug.verify_log, bug.regress_log)
-    assert bug.test_path == "tests/test_sentinel_first_n.py" and "SENTINEL: expected to FAIL" in (
+    assert bug.test_path == "tests/test_onix_first_n.py" and "ONIX: expected to FAIL" in (
         bug.test_code or ""
     )
     assert "expected assertion" in (bug.verify_log or "")
@@ -93,7 +93,7 @@ def test_full_audit_finds_verifies_fixes_reports(tmp_path: Path) -> None:
     md = (run_dir / "report.md").read_text()
     assert "## Verified bugs (1)" in md and "## Unverified suspicions (1)" in md
     html = (run_dir / "report.html").read_text()
-    assert "Sentinel audit report" in html and "first_n" in html
+    assert "Onix audit report" in html and "first_n" in html
 
     events = mgr.events(run.id)
     types = {e.type for e in events}
@@ -111,7 +111,7 @@ def test_full_audit_finds_verifies_fixes_reports(tmp_path: Path) -> None:
     assert final.cost_usd > 0
     # the sandbox double ran the new test alone (verify, fix) and the full suite (baseline, regress)
     sb_cmds = [e.data["command"] for e in events if e.type == "sandbox.exec"]
-    assert any("test_sentinel_first_n" in c for c in sb_cmds) and any("suite" in c for c in sb_cmds)
+    assert any("test_onix_first_n" in c for c in sb_cmds) and any("suite" in c for c in sb_cmds)
 
 
 @pytest.mark.timeout(120)

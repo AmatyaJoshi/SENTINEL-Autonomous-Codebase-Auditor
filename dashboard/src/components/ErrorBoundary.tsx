@@ -17,7 +17,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[Sentinel] UI error", error, info.componentStack);
+    console.error("[Onix] UI error", error, info.componentStack);
   }
 
   private reset = () => this.setState({ error: null });

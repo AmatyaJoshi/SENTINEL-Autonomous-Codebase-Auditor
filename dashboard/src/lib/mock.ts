@@ -90,7 +90,7 @@ from ${file.replace(/\.py$/, "").replace(/\//g, ".")} import ${symbol}
 
 
 def test_${symbol}_boundary_is_inclusive():
-    """Sentinel: ${symbol} drops the last element when n == len(items)."""
+    """Onix: ${symbol} drops the last element when n == len(items)."""
     items = [1, 2, 3]
     assert ${symbol}(items, 3) == [1, 2, 3]
 
@@ -117,7 +117,7 @@ const PATCH = (file: string, symbol: string) => `--- a/${file}
  def last_n(items, n):
 `;
 
-const VERIFY_LOG = (test: string) => `$ docker run --rm -v /work:/work sentinel-sandbox:py3.12 pytest -q ${test}
+const VERIFY_LOG = (test: string) => `$ docker run --rm -v /work:/work onix-sandbox:py3.12 pytest -q ${test}
 ============================= test session starts ==============================
 collected 2 items
 
@@ -134,7 +134,7 @@ E         Right contains one more item: 3
 ========================= 1 failed, 1 passed in 0.14s ==========================
 exit_code=1  (bug reproduced: test fails on baseline)`;
 
-const REGRESS_LOG = (test: string) => `$ docker run --rm -v /work:/work sentinel-sandbox:py3.12 pytest -q
+const REGRESS_LOG = (test: string) => `$ docker run --rm -v /work:/work onix-sandbox:py3.12 pytest -q
 ============================= test session starts ==============================
 collected 214 items
 
@@ -146,7 +146,7 @@ collected 214 items
 $ pytest -q ${test}
 ..                                                                       [100%]
 ============================== 2 passed in 0.11s ===============================
-exit_code=0  (patch applied: sentinel test passes, no regressions)`;
+exit_code=0  (patch applied: onix test passes, no regressions)`;
 
 const DESCRIPTIONS: Record<(typeof CATEGORIES)[number], string> = {
   off_by_one: "Slice upper bound excludes the final element when n equals the collection length.",
@@ -307,11 +307,11 @@ class MockServer implements ApiClient {
         ].slice(0, Math.floor(between(1, 4))),
         confidence,
         status,
-        test_path: verifiedLike || status === "refuted" ? `tests/test_sentinel_${symbol}.py` : null,
+        test_path: verifiedLike || status === "refuted" ? `tests/test_onix_${symbol}.py` : null,
         test_code: verifiedLike || status === "refuted" ? TEST_CODE(symbol, file) : null,
         patch_diff: status === "fixed" || status === "pr_opened" || status === "regressed" ? PATCH(file, symbol) : null,
-        verify_log: verifiedLike || status === "refuted" ? VERIFY_LOG(`tests/test_sentinel_${symbol}.py`) : null,
-        regress_log: status === "fixed" || status === "pr_opened" ? REGRESS_LOG(`tests/test_sentinel_${symbol}.py`) : status === "regressed" ? REGRESS_LOG("").replace("214 passed", "212 passed, 2 failed").replace("exit_code=0", "exit_code=1") : null,
+        verify_log: verifiedLike || status === "refuted" ? VERIFY_LOG(`tests/test_onix_${symbol}.py`) : null,
+        regress_log: status === "fixed" || status === "pr_opened" ? REGRESS_LOG(`tests/test_onix_${symbol}.py`) : status === "regressed" ? REGRESS_LOG("").replace("214 passed", "212 passed, 2 failed").replace("exit_code=0", "exit_code=1") : null,
         pr_url: status === "pr_opened" ? `${run.repo_url}/pull/${Math.floor(between(100, 999))}` : null,
         explanation: verifiedLike
           ? `${symbol}() in ${file} mis-handles the upper bound. The generated test fails on the baseline commit and passes after the one-line patch; the full suite still passes, so the fix is safe to merge.`
@@ -607,7 +607,7 @@ class MockServer implements ApiClient {
         const target = cands[0];
         if (target) {
           llm(name, between(0.05, 0.15));
-          target.test_path = `tests/test_sentinel_${target.symbol ?? "case"}.py`;
+          target.test_path = `tests/test_onix_${target.symbol ?? "case"}.py`;
           target.test_code = TEST_CODE(target.symbol ?? "case", target.file);
           const reproduced = rand() > 0.3;
           sandbox(name, `pytest -q ${target.test_path}`, reproduced ? 1 : 0);
@@ -624,7 +624,7 @@ class MockServer implements ApiClient {
         if (target) {
           llm(name, between(0.08, 0.2));
           target.patch_diff = PATCH(target.file, target.symbol ?? "fn");
-          sandbox(name, `git apply --check sentinel-${target.id}.patch`, 0);
+          sandbox(name, `git apply --check onix-${target.id}.patch`, 0);
           target.status = "fixed";
           this.emit(run.id, { type: "finding.update", data: { ...target } });
           log(`Patched ${target.file} for ${target.id}`);
@@ -823,16 +823,16 @@ class MockServer implements ApiClient {
 
   settings(): Promise<SettingsSnapshot> {
     return this.delay({
-      SENTINEL_ENV: "development",
-      SENTINEL_DB_URL: "sqlite:///./sentinel.db",
-      SENTINEL_API_KEYS: "[REDACTED x3]",
-      SENTINEL_LLM_PROVIDER: "anthropic",
-      SENTINEL_LLM_MODEL: "claude-sonnet-4-5",
+      ONIX_ENV: "development",
+      ONIX_DB_URL: "sqlite:///./onix.db",
+      ONIX_API_KEYS: "[REDACTED x3]",
+      ONIX_LLM_PROVIDER: "anthropic",
+      ONIX_LLM_MODEL: "claude-sonnet-4-5",
       ANTHROPIC_API_KEY: "sk-ant-***REDACTED***",
-      SENTINEL_DOCKER_IMAGE: "sentinel-sandbox:py3.12",
-      SENTINEL_MAX_PARALLEL_RUNS: 2,
-      SENTINEL_DEFAULT_BUDGET_USD: 5,
-      SENTINEL_RATE_LIMIT_PER_MIN: 120,
+      ONIX_DOCKER_IMAGE: "onix-sandbox:py3.12",
+      ONIX_MAX_PARALLEL_RUNS: 2,
+      ONIX_DEFAULT_BUDGET_USD: 5,
+      ONIX_RATE_LIMIT_PER_MIN: 120,
       GITHUB_TOKEN: "ghp_***REDACTED***",
     });
   }
@@ -843,7 +843,7 @@ class MockServer implements ApiClient {
 
   reportUrl(runId: string, fmt: ReportFormat) {
     const run = this.runs.get(runId);
-    const body = fmt === "json" ? JSON.stringify({ run, findings: this.findings.get(runId) ?? [] }, null, 2) : fmt === "md" ? `# Sentinel report for ${run?.repo_url}\n\n(Demo data)\n` : `<!doctype html><title>Sentinel report</title><h1>Sentinel report (demo)</h1><p>${run?.repo_url ?? ""}</p>`;
+    const body = fmt === "json" ? JSON.stringify({ run, findings: this.findings.get(runId) ?? [] }, null, 2) : fmt === "md" ? `# Onix report for ${run?.repo_url}\n\n(Demo data)\n` : `<!doctype html><title>Onix report</title><h1>Onix report (demo)</h1><p>${run?.repo_url ?? ""}</p>`;
     const mime = fmt === "json" ? "application/json" : fmt === "md" ? "text/markdown" : "text/html";
     return `data:${mime};charset=utf-8,${encodeURIComponent(body)}`;
   }

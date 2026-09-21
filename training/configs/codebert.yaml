@@ -1,7 +1,7 @@
 # Alternative baseline (SPEC §7.3): full fine-tune of a small encoder classifier.
 base_model: microsoft/codebert-base
 data_dir: training/data
-output_dir: .sentinel/models/triage-codebert
+output_dir: .onix/models/triage-codebert
 max_len: 512
 epochs: 3
 lr: 0.00002

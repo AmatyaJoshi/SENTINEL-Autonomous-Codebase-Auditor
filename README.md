@@ -1,9 +1,11 @@
-# Sentinel — Autonomous Codebase Auditor
+# Onix — bugs proven by failing tests, not opinions.
 
-[![ci](https://github.com/AmatyaJoshi/SENTINEL-Autonomous-Codebase-Auditor/actions/workflows/ci.yml/badge.svg)](https://github.com/AmatyaJoshi/SENTINEL-Autonomous-Codebase-Auditor/actions/workflows/ci.yml)
+> Formerly **Sentinel**; renamed to Onix in 0.2.0. See [Upgrading from Sentinel](#upgrading-from-sentinel).
+
+[![ci](https://github.com/AmatyaJoshi/onix/actions/workflows/ci.yml/badge.svg)](https://github.com/AmatyaJoshi/onix/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.12-blue) ![license](https://img.shields.io/badge/license-MIT-green)
 
-Sentinel is a LangGraph multi-agent system that clones a repository, builds a semantic + structural
+Onix is a LangGraph multi-agent system that clones a repository, builds a semantic + structural
 index, hunts for bugs with static analyzers and LLM agents, **proves each bug by writing a failing
 test that runs in a network-isolated Docker sandbox**, generates a minimal fix, verifies the fix
 against the repository's own test suite, and opens a reviewable draft pull request with a full audit
@@ -14,7 +16,7 @@ benchmark against three comparison arms, including the "single-shot LLM review" 
 **Why this is not a toy:** a finding only counts if an executable test reproduces it. Suspicions that
 fail verification are still reported, but under "unverified", never as bugs.
 
-![Sentinel dashboard tour](docs/media/demo.gif)
+![Onix dashboard tour](docs/media/demo.gif)
 
 <p align="center">
   <img src="docs/media/run-detail.png" width="49%" alt="Live run: pipeline stages, cost gauge, activity feed">
@@ -31,7 +33,7 @@ Real PR screenshots will replace the demo once a run has opened one.*
 ```mermaid
 flowchart LR
   subgraph Clients
-    CLI[sentinel CLI]
+    CLI[onix CLI]
     UI[React dashboard]
   end
   API[FastAPI · API keys · roles · SSE · audit log]
@@ -69,23 +71,23 @@ flowchart LR
 ```bash
 uv sync --all-groups
 cp .env.example .env               # add an LLM key to enable hunt/verify/fix
-uv run sentinel --help
+uv run onix --help
 
-uv run sentinel index  https://github.com/pallets/click      # symbols, chunks, embeddings, call graph
-uv run sentinel search "how are command options parsed"
-uv run sentinel analyze ./repo --sarif out.sarif             # analyzers only, SARIF 2.1.0
-uv run sentinel audit  https://github.com/you/repo --max-usd 3   # full graph → .sentinel/runs/<id>/report.html
-uv run sentinel audit  ./repo --review                       # pause before PR for human approval
-uv run sentinel replay <run_id> --from verify                # resume from a checkpoint
-uv run sentinel serve                                        # API + dashboard on http://127.0.0.1:8000
+uv run onix index  https://github.com/pallets/click      # symbols, chunks, embeddings, call graph
+uv run onix search "how are command options parsed"
+uv run onix analyze ./repo --sarif out.sarif             # analyzers only, SARIF 2.1.0
+uv run onix audit  https://github.com/you/repo --max-usd 3   # full graph → .onix/runs/<id>/report.html
+uv run onix audit  ./repo --review                       # pause before PR for human approval
+uv run onix replay <run_id> --from verify                # resume from a checkpoint
+uv run onix serve                                        # API + dashboard on http://127.0.0.1:8000
 ```
 
 Docker is required for verification. Without it the audit still runs and the report is explicit that
 findings are **unverified candidates**. Build the sandbox base images once:
 
 ```bash
-docker build -f sentinel/sandbox/images/Dockerfile.python -t sentinel-base-python:3.12 sentinel/sandbox/images
-docker build -f sentinel/sandbox/images/Dockerfile.node   -t sentinel-base-node:20     sentinel/sandbox/images
+docker build -f onix/sandbox/images/Dockerfile.python -t onix-base-python:3.12 onix/sandbox/images
+docker build -f onix/sandbox/images/Dockerfile.node   -t onix-base-node:20     onix/sandbox/images
 ```
 
 ### Full stack
@@ -103,7 +105,7 @@ backend.
 
 ```bash
 cd dashboard && npm ci && npm run dev      # http://localhost:5173 (proxies /api to :8000)
-npm run build                              # → dashboard/dist, picked up by `sentinel serve`
+npm run build                              # → dashboard/dist, picked up by `onix serve`
 ```
 
 ## API
@@ -122,9 +124,9 @@ uv run python bench/run_bench.py --suite small --arms analyzers,single_shot --in
 
 Mutation operators (`bench/inject/operators.py`): OffByOne, NullCheckRemoval, ExceptionSwallow,
 ResourceLeak, WrongOperator, TypeConfusion, AsyncMisuse, ReturnMutation, SecuritySmell. A mutant is
-kept only if at least one existing test fails on it; that test is then skipped in the copy Sentinel
-audits, so Sentinel must rediscover the bug. Scoring is lenient (file + ±5 lines) and strict (+
-category), per arm: analyzers only, single-shot LLM review, Sentinel without triage, Sentinel.
+kept only if at least one existing test fails on it; that test is then skipped in the copy Onix
+audits, so Onix must rediscover the bug. Scoring is lenient (file + ±5 lines) and strict (+
+category), per arm: analyzers only, single-shot LLM review, Onix without triage, Onix.
 Results are appended to [bench/RESULTS.md](bench/RESULTS.md) with date and commit.
 
 **Numbers reported here are measured, never estimated.** No benchmark has been run yet with a live
@@ -137,15 +139,15 @@ otherwise the "a test must fail on the mutant" check is the sole filter and the 
 `training/` builds a repo-split dataset from the findings table (label = survived verification),
 trains a dependency-free logistic-regression baseline and a Qwen2.5-Coder LoRA classifier, evaluates
 AUROC / F1 / Brier / calibration against hunter-confidence-only, heuristic priors, and an LLM judge,
-and reports sandbox runs avoided. Until a model is trained, `sentinel.triage.model.HeuristicTriage`
+and reports sandbox runs avoided. Until a model is trained, `onix.triage.model.HeuristicTriage`
 supplies calibrated per-category priors.
 
 ## Enterprise operation
 
-See [docs/OPERATIONS.md](docs/OPERATIONS.md) for the full runbook: queue mode with `sentinel worker`
+See [docs/OPERATIONS.md](docs/OPERATIONS.md) for the full runbook: queue mode with `onix worker`
 for multi-replica deployments, database-managed API keys with rotation, OIDC/SSO, secret references
-(Vault, AWS/GCP Secrets Manager, mounted files), Alembic migrations (`sentinel db upgrade`), retention
-(`sentinel gc`), Prometheus `/metrics` with alert rules and a Grafana dashboard, request IDs, and the
+(Vault, AWS/GCP Secrets Manager, mounted files), Alembic migrations (`onix db upgrade`), retention
+(`onix gc`), Prometheus `/metrics` with alert rules and a Grafana dashboard, request IDs, and the
 Helm chart under `deploy/`.
 
 - **Isolation:** Docker-only sandbox, `--network none`, read-only root FS, all capabilities dropped,
@@ -153,7 +155,7 @@ Helm chart under `deploy/`.
   [SECURITY.md](SECURITY.md).
 - **Governance:** draft PRs only, human review gate (`--review`), audit log, budget caps per run,
   RBAC on the API, redacted settings endpoint.
-- **Operations:** structured JSON logs (`SENTINEL_LOG_JSON=1`), `/health` and `/ready`, OpenTelemetry
+- **Operations:** structured JSON logs (`ONIX_LOG_JSON=1`), `/health` and `/ready`, OpenTelemetry
   spans for every node, LLM call and sandbox execution, Postgres for multi-user deployments,
   multi-stage Docker image with health check, Dependabot, CI on every PR.
 - **Reproducibility:** temperature 0, pinned models, LLM responses cached by content hash, pinned
@@ -177,7 +179,7 @@ Helm chart under `deploy/`.
 | Flaky tests corrupt regression signal | failing tests re-run before counting; baseline failures recorded per run |
 | Repo tests need network/services | detected by the baseline run; report marks regression as partial |
 | Benchmark leakage | injected-bug track is primary; real-issue track uses post-cutoff commits; disclosed in RESULTS.md |
-| Prompt injection via repo content | tool output wrapped in `<sentinel-data>` blocks; system prompt forbids following it; hunter has no write tools |
+| Prompt injection via repo content | tool output wrapped in `<onix-data>` blocks; system prompt forbids following it; hunter has no write tools |
 
 ## Status
 
@@ -192,6 +194,30 @@ Helm chart under `deploy/`.
 | 6 | telemetry spans, API, dashboard | done (Prometheus metrics, OIDC, DB API keys, queue/worker mode, Helm chart added) |
 | 7 | triage dataset, LoRA + baseline training, eval, router integration | scripts done; model not yet trained (needs ≥ 3k labelled candidates) |
 | 8 | polish, GIF demo, real PR screenshots | GIF + dashboard screenshots done (demo mode); real PR screenshots need a Docker host and a GitHub token |
+
+## Upgrading from Sentinel
+
+Onix was called Sentinel until 0.2.0. Everything was renamed: the Python package (`sentinel` → `onix`),
+the CLI command, the `SENTINEL_*` environment prefix (`ONIX_*`), the `.sentinel/` work dir (`.onix/`),
+the per-repo config file (`sentinel.yaml` → `onix.yaml`), the `<sentinel-data>` prompt wrapper
+(`<onix-data>`), the `# SENTINEL: expected to FAIL` test marker (`# ONIX: …`), Prometheus metric
+prefix (`sentinel_*` → `onix_*`), OpenTelemetry service name, Docker image tags
+(`sentinel-base-*` → `onix-base-*`), the Helm chart (`deploy/helm/onix`) and the compose Postgres
+user/database (`onix`).
+
+Compatibility shims, all **removed in 0.3.0**:
+
+| Old | Behaviour in 0.2.x |
+|---|---|
+| `SENTINEL_X` env var with `ONIX_X` unset | used as `ONIX_X`; one warning per variable naming both names |
+| `.sentinel/` work dir with no `.onix/` | renamed to `.onix/` on first start, logged |
+| API keys with the `sk-sentinel-` prefix | still authenticate (hash lookup); one deprecation log line per key; rotate them |
+| dashboard theme stored under `sentinel.theme` | read as a fallback |
+
+Not shimmed: `.env` files are read with the new prefix only, so rename `SENTINEL_*` lines there;
+rename `sentinel.yaml` in audited repos; an existing compose volume keeps the old Postgres role, so
+either `docker compose down -v` or set `ONIX_DATABASE_URL` to the old `sentinel:sentinel@…/sentinel`
+URL; Grafana dashboards and alert rules must be re-imported from `deploy/` for the new metric names.
 
 ## License
 

@@ -7,16 +7,16 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from sentinel.analyzers.bandit import BanditAdapter
-from sentinel.analyzers.base import AnalyzerFinding, AnalyzerResult, run_all, to_sarif
-from sentinel.analyzers.eslint import EslintAdapter
-from sentinel.analyzers.mypy import MypyAdapter
-from sentinel.analyzers.registry import default_adapters
-from sentinel.analyzers.ruff import RuffAdapter
-from sentinel.analyzers.tsc import TscAdapter
-from sentinel.cli import app
-from sentinel.config import Settings
-from sentinel.graph.nodes.ingest import (
+from onix.analyzers.bandit import BanditAdapter
+from onix.analyzers.base import AnalyzerFinding, AnalyzerResult, run_all, to_sarif
+from onix.analyzers.eslint import EslintAdapter
+from onix.analyzers.mypy import MypyAdapter
+from onix.analyzers.registry import default_adapters
+from onix.analyzers.ruff import RuffAdapter
+from onix.analyzers.tsc import TscAdapter
+from onix.cli import app
+from onix.config import Settings
+from onix.graph.nodes.ingest import (
     detect_language,
     detect_package_managers,
     detect_test_frameworks,
@@ -40,7 +40,7 @@ def _settings(tmp_path: Path) -> Settings:
 def test_is_url() -> None:
     assert is_url("https://github.com/org/repo")
     assert is_url("git@github.com:org/repo.git")
-    assert not is_url("C:/CODES/Sentinel")
+    assert not is_url("C:/CODES/Onix")
     assert not is_url("./local")
 
 
@@ -76,7 +76,7 @@ def test_detect_mixed_and_lockfiles(tmp_path: Path) -> None:
 
 def test_repo_config_overrides(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x=1\n")
-    (tmp_path / "sentinel.yaml").write_text("language: mixed\ntest_command: make test\n")
+    (tmp_path / "onix.yaml").write_text("language: mixed\ntest_command: make test\n")
     res = ingest(str(tmp_path), _settings(tmp_path / ".w"))
     assert res.language == "mixed" and res.test_command == "make test"
 
@@ -177,7 +177,7 @@ def test_sarif_shape() -> None:
         "startColumn": 5,
     }
     assert (
-        sarif["runs"][0]["tool"]["driver"]["rules"][0]["properties"]["sentinelCategory"]
+        sarif["runs"][0]["tool"]["driver"]["rules"][0]["properties"]["onixCategory"]
         == "security_smell"
     )
     assert sarif["runs"][1]["tool"]["driver"]["properties"]["skippedReason"] == "no tsconfig"
@@ -190,8 +190,8 @@ def test_sarif_shape() -> None:
 def test_cli_index_then_search(tmp_path: Path, monkeypatch: object) -> None:
     import os
 
-    os.environ["SENTINEL_WORK_DIR"] = str(tmp_path)
-    os.environ["SENTINEL_DATABASE_URL"] = "sqlite://"
+    os.environ["ONIX_WORK_DIR"] = str(tmp_path)
+    os.environ["ONIX_DATABASE_URL"] = "sqlite://"
     try:
         r = runner.invoke(app, ["index", str(PYREPO)])
         assert r.exit_code == 0, r.output
@@ -219,5 +219,5 @@ def test_cli_index_then_search(tmp_path: Path, monkeypatch: object) -> None:
         assert {run["tool"]["driver"]["name"] for run in sarif["runs"]} == {"ruff", "bandit"}
         assert sum(len(run["results"]) for run in sarif["runs"]) >= 4
     finally:
-        os.environ.pop("SENTINEL_WORK_DIR", None)
-        os.environ.pop("SENTINEL_DATABASE_URL", None)
+        os.environ.pop("ONIX_WORK_DIR", None)
+        os.environ.pop("ONIX_DATABASE_URL", None)

@@ -15,7 +15,7 @@ from typing import Any
 
 
 def enabled() -> bool:
-    if not os.environ.get("MLFLOW_TRACKING_URI") and not os.environ.get("SENTINEL_MLFLOW"):
+    if not os.environ.get("MLFLOW_TRACKING_URI") and not os.environ.get("ONIX_MLFLOW"):
         return False
     try:
         import mlflow  # noqa: F401
@@ -33,7 +33,7 @@ def run(
         return
     import mlflow
 
-    mlflow.set_experiment(os.environ.get("SENTINEL_MLFLOW_EXPERIMENT", "sentinel-triage"))
+    mlflow.set_experiment(os.environ.get("ONIX_MLFLOW_EXPERIMENT", "onix-triage"))
     with mlflow.start_run(run_name=name) as active:
         if params:
             mlflow.log_params({k: _flat(v) for k, v in params.items()})

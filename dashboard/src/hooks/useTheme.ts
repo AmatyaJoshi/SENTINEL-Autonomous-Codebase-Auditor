@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 export type Theme = "dark" | "light";
-const KEY = "sentinel.theme";
+const KEY = "onix.theme";
+const LEGACY_KEY = "sentinel.theme"; // pre-rename key, read once so the preference survives
 
 function readTheme(): Theme {
   try {
-    const t = localStorage.getItem(KEY);
+    const t = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (t === "light" || t === "dark") return t;
   } catch {
     /* ignore */

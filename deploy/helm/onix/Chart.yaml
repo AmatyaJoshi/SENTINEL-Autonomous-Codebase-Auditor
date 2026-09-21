@@ -1,0 +1,7 @@
+apiVersion: v2
+name: onix
+description: Onix — bugs proven by failing tests, not opinions. Autonomous codebase auditor (API + dashboard, workers, Postgres/pgvector optional)
+type: application
+version: 0.2.0
+appVersion: "0.2.0"
+keywords: [security, code-review, llm, langgraph]

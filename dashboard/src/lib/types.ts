@@ -1,5 +1,5 @@
 /**
- * Typed models mirroring docs/API.md (Sentinel HTTP API v1).
+ * Typed models mirroring docs/API.md (Onix HTTP API v1).
  */
 
 export type Role = "viewer" | "operator" | "admin";

@@ -3,7 +3,7 @@
 Constraints enforced here:
 - only function-body lines (tree-sitter) are mutated;
 - a mutant is kept only if ≥ 1 existing test fails on it (not an equivalent mutant);
-- the killing tests are then skipped in the mutated copy so Sentinel must rediscover the bug;
+- the killing tests are then skipped in the mutated copy so Onix must rediscover the bug;
 - the original test source and the mutation are both stored for scoring.
 """
 
@@ -20,10 +20,10 @@ from pathlib import Path
 
 from bench.inject.coverage import is_covered, load_coverage
 from bench.inject.operators import Candidate, apply_candidate, propose
-from sentinel.graph.nodes.plan import is_test_file
-from sentinel.indexing.pipeline import discover_files
-from sentinel.sandbox.docker_runner import COPY_EXCLUDES
-from sentinel.sandbox.test_runner import TestReport
+from onix.graph.nodes.plan import is_test_file
+from onix.indexing.pipeline import discover_files
+from onix.sandbox.docker_runner import COPY_EXCLUDES
+from onix.sandbox.test_runner import TestReport
 
 # (repo_path, test_paths|None) -> TestReport. Production uses the Docker sandbox; tests use a host double.
 TestExecutor = Callable[[Path, list[str] | None], TestReport]
@@ -109,7 +109,7 @@ def skip_tests(repo: Path, killed: list[str], language: str) -> tuple[list[str],
 
             def repl(m: re.Match[str]) -> str:
                 if m.group(3) in names:
-                    return f"{m.group(1)}@pytest.mark.skip(reason='sentinel-bench: killing test hidden')\n{m.group(0)}"
+                    return f"{m.group(1)}@pytest.mark.skip(reason='onix-bench: killing test hidden')\n{m.group(0)}"
                 return m.group(0)
 
             new = _PY_TEST_DEF.sub(repl, src)

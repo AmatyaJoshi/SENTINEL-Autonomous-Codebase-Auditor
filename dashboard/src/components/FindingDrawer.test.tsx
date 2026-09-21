@@ -32,7 +32,7 @@ describe("FindingDrawer", () => {
     render(<FindingDrawer finding={f} onClose={noop} canDecide={false} onDecide={noop} />);
     await user.click(screen.getByRole("tab", { name: "Test" }));
     expect(screen.getByRole("tab", { name: "Test" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("tests/test_sentinel_first_n.py")).toBeInTheDocument();
+    expect(screen.getByText("tests/test_onix_first_n.py")).toBeInTheDocument();
     expect(screen.getByText(/def test_first_n_boundary_is_inclusive/)).toBeInTheDocument();
   });
 

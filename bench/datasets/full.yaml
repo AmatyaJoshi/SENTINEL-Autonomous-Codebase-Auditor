@@ -14,7 +14,7 @@ repos:
   - { name: colinhacks/zod, url: https://github.com/colinhacks/zod.git, sha: null, language: typescript }
   - { name: unjs/defu, url: https://github.com/unjs/defu.git, sha: null, language: typescript }
 
-# Real-issue track (SPEC §8.1 #2): buggy parent commits of real fixes. Sentinel must find the bug the
+# Real-issue track (SPEC §8.1 #2): buggy parent commits of real fixes. Onix must find the bug the
 # fix addressed. Fill `parent_sha` from the fix commit's parent; `fix_files` scopes scoring.
 real_issues:
   - { name: swe-bench-lite, source: princeton-nlp/SWE-bench_Lite, split: test, sample: 30, note: "python; leakage-prone, disclose" }

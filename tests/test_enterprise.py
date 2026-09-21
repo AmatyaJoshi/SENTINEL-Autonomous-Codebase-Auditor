@@ -15,16 +15,16 @@ from fastapi.testclient import TestClient
 from sqlmodel import create_engine
 
 from bench.inject.coverage import is_covered, parse_coverage_json, parse_lcov
-from sentinel.api.app import create_app
-from sentinel.api.auth import Authenticator, hash_key
-from sentinel.config import ApiKey, Settings
-from sentinel.db.models import Run
-from sentinel.db.session import init_db, session_scope
-from sentinel.llm.pricing import PriceTable, estimate_tokens
-from sentinel.queue import Worker, claim_next, enqueue
-from sentinel.retention import collect_garbage
-from sentinel.runner import RunManager
-from sentinel.secrets import is_reference, resolve
+from onix.api.app import create_app
+from onix.api.auth import Authenticator, hash_key
+from onix.config import ApiKey, Settings
+from onix.db.models import Run
+from onix.db.session import init_db, session_scope
+from onix.llm.pricing import PriceTable, estimate_tokens
+from onix.queue import Worker, claim_next, enqueue
+from onix.retention import collect_garbage
+from onix.runner import RunManager
+from onix.secrets import is_reference, resolve
 from tests.fakes import PYREPO, make_scripted_backend
 
 
@@ -59,7 +59,7 @@ def test_secret_references(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert is_reference("vault://x") and not is_reference("sk-plain")
     with pytest.raises(KeyError):
         resolve("env://DOES_NOT_EXIST_XYZ")
-    monkeypatch.setenv("SENTINEL_OPENROUTER_API_KEY", f"file://{f.as_posix()}")
+    monkeypatch.setenv("ONIX_OPENROUTER_API_KEY", f"file://{f.as_posix()}")
     s = Settings(_env_file=None, work_dir=tmp_path)  # type: ignore[call-arg]
     assert (
         s.openrouter_api_key is not None and s.openrouter_api_key.get_secret_value() == "from-file"
@@ -86,7 +86,7 @@ def test_db_api_keys_lifecycle(tmp_path: Path) -> None:
     auth = Authenticator(s, engine)
     assert auth.open_mode  # no static keys, no OIDC
     raw, rec = auth.create_key("ci", "operator", "test", expires_days=1)
-    assert raw.startswith("sk-sentinel-") and rec.key_hash == hash_key(raw)
+    assert raw.startswith("sk-onix-") and rec.key_hash == hash_key(raw)
     who = auth.by_api_key(raw)
     assert who and who.role == "operator" and who.via == "db-key"
     assert auth.by_api_key("nope") is None
@@ -130,14 +130,14 @@ def test_key_management_endpoints_and_audit_log(tmp_path: Path) -> None:
     resp = c.get("/health")
     assert resp.headers["X-Request-ID"] and resp.json()["checks"]["auth"] == "api-key"
     m = c.get("/metrics").text
-    assert "sentinel_http_requests_total" in m
+    assert "onix_http_requests_total" in m
 
 
 def test_oidc_bearer_rejected_without_issuer_and_role_mapping(tmp_path: Path) -> None:
     s = _settings(
         tmp_path,
         oidc_issuer="https://issuer.example",
-        oidc_audience="sentinel",
+        oidc_audience="onix",
         oidc_role_map={"grp-admin": "admin"},
     )
     engine = create_engine(s.database_url)
@@ -236,7 +236,7 @@ def test_db_rate_limit_is_shared_across_replicas(tmp_path: Path) -> None:
     )
     from sqlmodel import select as sm_select
 
-    from sentinel.db.models import RateLimitBucket
+    from onix.db.models import RateLimitBucket
 
     with session_scope(mgr.engine) as s:
         keys = [b.key for b in s.exec(sm_select(RateLimitBucket)).all()]
@@ -244,7 +244,7 @@ def test_db_rate_limit_is_shared_across_replicas(tmp_path: Path) -> None:
 
 
 def test_rate_limit_backend_auto_follows_execution_mode(tmp_path: Path) -> None:
-    from sentinel.api.app import make_rate_limiter
+    from onix.api.app import make_rate_limiter
 
     inline = _settings(tmp_path)
     queue = _settings(tmp_path, execution_mode="queue")
@@ -255,7 +255,7 @@ def test_rate_limit_backend_auto_follows_execution_mode(tmp_path: Path) -> None:
 
 # --------------------------------------------------------------------------- migrations
 def test_alembic_upgrade_and_stamp(tmp_path: Path) -> None:
-    from sentinel.db.migrate import current_revision, head_revision, upgrade
+    from onix.db.migrate import current_revision, head_revision, upgrade
 
     url = f"sqlite:///{(tmp_path / 'm.sqlite').as_posix()}"
     engine = create_engine(url)
@@ -266,7 +266,7 @@ def test_alembic_upgrade_and_stamp(tmp_path: Path) -> None:
     engine2 = create_engine(url2)
     from sqlmodel import SQLModel
 
-    from sentinel.db import models  # noqa: F401
+    from onix.db import models  # noqa: F401
 
     SQLModel.metadata.create_all(engine2)
     upgrade(engine2, url2)
@@ -298,8 +298,8 @@ def test_coverage_parsers() -> None:
 
 # --------------------------------------------------------------------------- sandbox node analyzers
 def test_sandbox_eslint_tsc_adapters_parse(tmp_path: Path) -> None:
-    from sentinel.analyzers.node_sandbox import SandboxEslintAdapter, SandboxTscAdapter
-    from sentinel.sandbox.docker_runner import ExecResult
+    from onix.analyzers.node_sandbox import SandboxEslintAdapter, SandboxTscAdapter
+    from onix.sandbox.docker_runner import ExecResult
 
     runner = MagicMock()
     ts = Path(__file__).parent / "fixtures" / "tsrepo"

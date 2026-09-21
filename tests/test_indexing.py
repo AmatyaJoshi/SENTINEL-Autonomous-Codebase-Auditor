@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from sentinel.config import Settings
-from sentinel.indexing.callgraph import CallGraph
-from sentinel.indexing.chunker import MAX_TOKENS, chunk_parsed_file, estimate_tokens
-from sentinel.indexing.embeddings import HashEmbedder
-from sentinel.indexing.pipeline import discover_files, index_repo, read_last_index
-from sentinel.indexing.store import SqliteIndexStore, hybrid_search, rrf_fuse
-from sentinel.indexing.treesitter import parse_file, parse_source
+from onix.config import Settings
+from onix.indexing.callgraph import CallGraph
+from onix.indexing.chunker import MAX_TOKENS, chunk_parsed_file, estimate_tokens
+from onix.indexing.embeddings import HashEmbedder
+from onix.indexing.pipeline import discover_files, index_repo, read_last_index
+from onix.indexing.store import SqliteIndexStore, hybrid_search, rrf_fuse
+from onix.indexing.treesitter import parse_file, parse_source
 
 FIX = Path(__file__).parent / "fixtures"
 PYREPO = FIX / "pyrepo"
@@ -141,7 +141,7 @@ def test_callgraph_roundtrip(tmp_path: Path) -> None:
 
 
 def test_rrf_fuse_prefers_items_in_both_lists() -> None:
-    from sentinel.indexing.store import SearchHit
+    from onix.indexing.store import SearchHit
 
     def h(i: str) -> SearchHit:
         return SearchHit(
@@ -206,17 +206,17 @@ def test_discover_files_filters(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(
-    not __import__("os").environ.get("SENTINEL_TEST_PG_URL"),
-    reason="set SENTINEL_TEST_PG_URL to run against pgvector (docker compose up -d postgres)",
+    not __import__("os").environ.get("ONIX_TEST_PG_URL"),
+    reason="set ONIX_TEST_PG_URL to run against pgvector (docker compose up -d postgres)",
 )
 def test_postgres_store_roundtrip(tmp_path: Path) -> None:
     import os
 
-    from sentinel.indexing.store import PostgresIndexStore
+    from onix.indexing.store import PostgresIndexStore
 
     settings = Settings(_env_file=None, work_dir=tmp_path)  # type: ignore[call-arg]
     emb = HashEmbedder()
-    store = PostgresIndexStore(os.environ["SENTINEL_TEST_PG_URL"], emb.dim)
+    store = PostgresIndexStore(os.environ["ONIX_TEST_PG_URL"], emb.dim)
     res = index_repo(PYREPO, settings, store=store, embedder=emb)
     hits = hybrid_search(store, emb, res.repo_id, "where is the auth token parsed", k=3)
     assert hits and hits[0].symbol == "parse_auth_token"

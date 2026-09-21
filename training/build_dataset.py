@@ -23,11 +23,11 @@ sys.path.insert(0, str(ROOT))
 
 from sqlmodel import select  # noqa: E402
 
-from sentinel.config import get_settings  # noqa: E402
-from sentinel.db.models import FindingRecord, Run  # noqa: E402
-from sentinel.db.session import get_engine, init_db, session_scope  # noqa: E402
-from sentinel.graph.state import Finding  # noqa: E402
-from sentinel.triage.model import FEATURE_NAMES, featurize, serialize_for_llm  # noqa: E402
+from onix.config import get_settings  # noqa: E402
+from onix.db.models import FindingRecord, Run  # noqa: E402
+from onix.db.session import get_engine, init_db, session_scope  # noqa: E402
+from onix.graph.state import Finding  # noqa: E402
+from onix.triage.model import FEATURE_NAMES, featurize, serialize_for_llm  # noqa: E402
 
 POS = {"verified", "fixed", "pr_opened"}
 NEG = {"refuted"}

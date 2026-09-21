@@ -16,14 +16,14 @@ from bench.inject.injector import Injected, inject, skip_tests
 from bench.inject.operators import ALL_OPERATORS, apply_candidate, propose
 from bench.run_bench import run_suite
 from bench.score import ArmScore, Reported, from_findings, score_instance
-from sentinel.config import Settings
-from sentinel.runner import RunManager
-from sentinel.sandbox.test_runner import parse_junit
+from onix.config import Settings
+from onix.runner import RunManager
+from onix.sandbox.test_runner import parse_junit
 from tests.fakes import PYREPO, HostPytestSandbox, make_scripted_backend
 
 
 def host_executor(repo: Path, paths: list[str] | None):  # type: ignore[no-untyped-def]
-    junit = repo / ".sentinel" / "junit.xml"
+    junit = repo / ".onix" / "junit.xml"
     junit.parent.mkdir(exist_ok=True)
     junit.unlink(missing_ok=True)
     subprocess.run(  # noqa: S603
@@ -279,7 +279,7 @@ def test_run_suite_end_to_end_on_fixture(tmp_path: Path) -> None:
 def test_training_scripts_on_synthetic_data(tmp_path: Path) -> None:
     import random
 
-    from sentinel.triage.model import FEATURE_NAMES
+    from onix.triage.model import FEATURE_NAMES
     from training.eval_triage import main as eval_main
     from training.train_triage_baseline import main as train_main
 

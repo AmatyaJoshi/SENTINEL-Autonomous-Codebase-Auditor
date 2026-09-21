@@ -8,12 +8,12 @@ import pytest
 from sqlmodel import create_engine, select
 from typer.testing import CliRunner
 
-from sentinel.cli import app
-from sentinel.config import RepoConfig, Settings
-from sentinel.db.models import FindingRecord, Run
-from sentinel.db.session import init_db, session_scope
-from sentinel.graph.state import Budget, Finding
-from sentinel.telemetry.otel import span
+from onix.cli import app
+from onix.config import RepoConfig, Settings
+from onix.db.models import FindingRecord, Run
+from onix.db.session import init_db, session_scope
+from onix.graph.state import Budget, Finding
+from onix.telemetry.otel import span
 
 runner = CliRunner()
 
@@ -28,7 +28,7 @@ def test_cli_help() -> None:
 def test_cli_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "sentinel 0.1.0" in result.stdout
+    assert "onix 0.2.0" in result.stdout
 
 
 def test_all_commands_have_help() -> None:
@@ -49,7 +49,7 @@ def test_all_commands_have_help() -> None:
 
 
 def test_settings_defaults_keep_sandbox_isolation(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SENTINEL_DATABASE_URL", "sqlite://")
+    monkeypatch.setenv("ONIX_DATABASE_URL", "sqlite://")
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.sandbox.network == "none"
     assert s.sandbox.test_timeout_s == 120
@@ -59,7 +59,7 @@ def test_settings_defaults_keep_sandbox_isolation(monkeypatch: pytest.MonkeyPatc
 
 def test_repo_config_absent_and_present(tmp_path: Path) -> None:
     assert RepoConfig.load(tmp_path).language is None
-    (tmp_path / "sentinel.yaml").write_text("language: python\ntest_command: pytest -q\n")
+    (tmp_path / "onix.yaml").write_text("language: python\ntest_command: pytest -q\n")
     cfg = RepoConfig.load(tmp_path)
     assert cfg.language == "python"
     assert cfg.test_command == "pytest -q"
@@ -114,5 +114,5 @@ def test_budget_exceeded() -> None:
 
 
 def test_span_is_noop_before_init() -> None:
-    with span("sentinel.test", run_id="r1", finding_id=None) as s:
+    with span("onix.test", run_id="r1", finding_id=None) as s:
         assert s is not None

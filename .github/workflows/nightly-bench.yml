@@ -20,13 +20,13 @@ jobs:
       - run: uv sync --all-groups
       - name: build sandbox base images
         run: |
-          docker build -f sentinel/sandbox/images/Dockerfile.python -t sentinel-base-python:3.12 sentinel/sandbox/images
-          docker build -f sentinel/sandbox/images/Dockerfile.node -t sentinel-base-node:20 sentinel/sandbox/images
+          docker build -f onix/sandbox/images/Dockerfile.python -t onix-base-python:3.12 onix/sandbox/images
+          docker build -f onix/sandbox/images/Dockerfile.node -t onix-base-node:20 onix/sandbox/images
       - name: benchmark (small suite, all four arms)
         env:
-          SENTINEL_ANTHROPIC_API_KEY: ${{ secrets.SENTINEL_ANTHROPIC_API_KEY }}
-          SENTINEL_OPENAI_API_KEY: ${{ secrets.SENTINEL_OPENAI_API_KEY }}
-          SENTINEL_WORK_DIR: ${{ runner.temp }}/sentinel
+          ONIX_ANTHROPIC_API_KEY: ${{ secrets.ONIX_ANTHROPIC_API_KEY }}
+          ONIX_OPENAI_API_KEY: ${{ secrets.ONIX_OPENAI_API_KEY }}
+          ONIX_WORK_DIR: ${{ runner.temp }}/onix
         run: uv run python bench/run_bench.py --suite small
       - uses: actions/upload-artifact@v4
         if: always()

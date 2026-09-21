@@ -14,16 +14,16 @@ CoverageRunner = Callable[
     [Path], Path | None
 ]  # repo -> path of coverage report (json/lcov), or None
 
-COVERAGE_JSON = ".sentinel/coverage.json"
+COVERAGE_JSON = ".onix/coverage.json"
 LCOV = "coverage/lcov.info"
 
 
-def python_coverage_command(junit: str = ".sentinel/junit.xml") -> list[str]:
+def python_coverage_command(junit: str = ".onix/junit.xml") -> list[str]:
     return [
         "sh",
         "-c",
-        f"python -m coverage run --data-file=.sentinel/.coverage -m pytest -q -p no:cacheprovider "
-        f"--junitxml={junit}; python -m coverage json --data-file=.sentinel/.coverage -o {COVERAGE_JSON} -q",
+        f"python -m coverage run --data-file=.onix/.coverage -m pytest -q -p no:cacheprovider "
+        f"--junitxml={junit}; python -m coverage json --data-file=.onix/.coverage -o {COVERAGE_JSON} -q",
     ]
 
 

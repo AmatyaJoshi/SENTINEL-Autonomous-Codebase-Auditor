@@ -1,68 +1,68 @@
 # Full local stack: API + dashboard, Postgres + pgvector, Jaeger.
 #   docker compose up -d            # everything
-#   docker compose up -d postgres jaeger   # infra only, run `uv run sentinel serve` on the host
+#   docker compose up -d postgres jaeger   # infra only, run `uv run onix serve` on the host
 services:
-  sentinel:
+  onix:
     build: .
-    image: sentinel:local
+    image: onix:local
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:sentinel@postgres:5432/sentinel
-      SENTINEL_OTLP_ENDPOINT: http://jaeger:4317
-      SENTINEL_WORK_DIR: /data
-      SENTINEL_API_KEYS: ${SENTINEL_API_KEYS:-}
-      SENTINEL_ANTHROPIC_API_KEY: ${SENTINEL_ANTHROPIC_API_KEY:-}
-      SENTINEL_OPENAI_API_KEY: ${SENTINEL_OPENAI_API_KEY:-}
-      SENTINEL_GITHUB_TOKEN: ${SENTINEL_GITHUB_TOKEN:-}
-      SENTINEL_API_CORS_ORIGINS: ${SENTINEL_API_CORS_ORIGINS:-http://localhost:8000}
-      SENTINEL_OPENROUTER_API_KEY: ${SENTINEL_OPENROUTER_API_KEY:-}
-      SENTINEL_EXECUTION_MODE: ${SENTINEL_EXECUTION_MODE:-inline}
-      SENTINEL_ENVIRONMENT: prod
+      ONIX_DATABASE_URL: postgresql+psycopg://onix:onix@postgres:5432/onix
+      ONIX_OTLP_ENDPOINT: http://jaeger:4317
+      ONIX_WORK_DIR: /data
+      ONIX_API_KEYS: ${ONIX_API_KEYS:-}
+      ONIX_ANTHROPIC_API_KEY: ${ONIX_ANTHROPIC_API_KEY:-}
+      ONIX_OPENAI_API_KEY: ${ONIX_OPENAI_API_KEY:-}
+      ONIX_GITHUB_TOKEN: ${ONIX_GITHUB_TOKEN:-}
+      ONIX_API_CORS_ORIGINS: ${ONIX_API_CORS_ORIGINS:-http://localhost:8000}
+      ONIX_OPENROUTER_API_KEY: ${ONIX_OPENROUTER_API_KEY:-}
+      ONIX_EXECUTION_MODE: ${ONIX_EXECUTION_MODE:-inline}
+      ONIX_ENVIRONMENT: prod
     ports:
       - "8000:8000"
     volumes:
-      - sentinel-data:/data
+      - onix-data:/data
       # Sandboxes are sibling containers; the socket is the only privilege this service needs.
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
-  # Optional: horizontal execution. Set SENTINEL_EXECUTION_MODE=queue on `sentinel` and scale this.
+  # Optional: horizontal execution. Set ONIX_EXECUTION_MODE=queue on `onix` and scale this.
   worker:
     build: .
-    image: sentinel:local
+    image: onix:local
     command: ["worker"]
     profiles: ["queue"]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:sentinel@postgres:5432/sentinel
-      SENTINEL_OTLP_ENDPOINT: http://jaeger:4317
-      SENTINEL_WORK_DIR: /data
-      SENTINEL_OPENROUTER_API_KEY: ${SENTINEL_OPENROUTER_API_KEY:-}
-      SENTINEL_ANTHROPIC_API_KEY: ${SENTINEL_ANTHROPIC_API_KEY:-}
-      SENTINEL_OPENAI_API_KEY: ${SENTINEL_OPENAI_API_KEY:-}
-      SENTINEL_GITHUB_TOKEN: ${SENTINEL_GITHUB_TOKEN:-}
-      SENTINEL_ENVIRONMENT: prod
+      ONIX_DATABASE_URL: postgresql+psycopg://onix:onix@postgres:5432/onix
+      ONIX_OTLP_ENDPOINT: http://jaeger:4317
+      ONIX_WORK_DIR: /data
+      ONIX_OPENROUTER_API_KEY: ${ONIX_OPENROUTER_API_KEY:-}
+      ONIX_ANTHROPIC_API_KEY: ${ONIX_ANTHROPIC_API_KEY:-}
+      ONIX_OPENAI_API_KEY: ${ONIX_OPENAI_API_KEY:-}
+      ONIX_GITHUB_TOKEN: ${ONIX_GITHUB_TOKEN:-}
+      ONIX_ENVIRONMENT: prod
     volumes:
-      - sentinel-data:/data
+      - onix-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: sentinel
-      POSTGRES_PASSWORD: sentinel
-      POSTGRES_DB: sentinel
+      POSTGRES_USER: onix
+      POSTGRES_PASSWORD: onix
+      POSTGRES_DB: onix
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sentinel"]
+      test: ["CMD-SHELL", "pg_isready -U onix"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -78,4 +78,4 @@ services:
 
 volumes:
   pgdata:
-  sentinel-data:
+  onix-data:

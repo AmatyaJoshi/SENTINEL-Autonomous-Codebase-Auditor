@@ -25,8 +25,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from sentinel.graph.state import Finding  # noqa: E402
-from sentinel.triage.model import HeuristicTriage, LinearTriage  # noqa: E402
+from onix.graph.state import Finding  # noqa: E402
+from onix.triage.model import HeuristicTriage, LinearTriage  # noqa: E402
 from training import mlflow_log  # noqa: E402
 
 
@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="training/data")
     ap.add_argument("--out", default="training/eval.json")
-    ap.add_argument("--logreg", default=".sentinel/models/triage_logreg.json")
+    ap.add_argument("--logreg", default=".onix/models/triage_logreg.json")
     ap.add_argument("--threshold", type=float, default=0.35)
     ap.add_argument("--lora-endpoint", default=None)
     ap.add_argument("--llm-judge", action="store_true")
@@ -150,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         for r in rows:
             try:
                 resp = litellm.completion(
-                    model="openai/sentinel-triage",
+                    model="openai/onix-triage",
                     api_base=a.lora_endpoint,
                     api_key="none",
                     messages=[{"role": "user", "content": r["text"]}],
@@ -162,9 +162,9 @@ def main(argv: list[str] | None = None) -> int:
                 preds.append(0.5)
         arms["lora"] = preds
     if a.llm_judge:
-        from sentinel.config import get_settings
-        from sentinel.llm.router import LLMRouter
-        from sentinel.llm.schemas import TriageOutput
+        from onix.config import get_settings
+        from onix.llm.router import LLMRouter
+        from onix.llm.schemas import TriageOutput
 
         router = LLMRouter(get_settings())
         preds = []

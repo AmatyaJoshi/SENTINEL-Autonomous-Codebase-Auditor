@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
-from sentinel.indexing.treesitter import ParsedFile, parse_source
+from onix.indexing.treesitter import ParsedFile, parse_source
 
 
 @dataclass(frozen=True)

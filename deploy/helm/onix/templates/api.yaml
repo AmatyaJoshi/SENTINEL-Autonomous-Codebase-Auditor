@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "onix.fullname" . }}-api
+  labels: {{- include "onix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "onix.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels: {{- include "onix.labels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args: ["db", "upgrade"]
+          env: {{- include "onix.env" . | nindent 12 }}
+          envFrom:
+            - secretRef: { name: {{ .Values.secrets.existingSecret }} }
+          volumeMounts: [{ name: data, mountPath: /data }]
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          ports: [{ name: http, containerPort: 8000 }]
+          env: {{- include "onix.env" . | nindent 12 }}
+          envFrom:
+            - secretRef: { name: {{ .Values.secrets.existingSecret }} }
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts: [{ name: data, mountPath: /data }]
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "onix.fullname" . }}-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "onix.fullname" . }}
+  labels: {{- include "onix.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "onix.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: api
+  ports: [{ name: http, port: 80, targetPort: http }]
+{{- if .Values.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "onix.fullname" . }}-data
+spec:
+  accessModes: [ReadWriteMany]
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  resources: { requests: { storage: {{ .Values.persistence.size }} } }
+{{- end }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "onix.fullname" . }}
+  annotations: {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls: [{ hosts: [{{ .Values.ingress.host | quote }}], secretName: {{ include "onix.fullname" . }}-tls }]
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: {{ include "onix.fullname" . }}, port: { name: http } } }
+{{- end }}
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "onix.fullname" . }}
+  labels: {{- include "onix.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "onix.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints: [{ port: http, path: /metrics, interval: {{ .Values.serviceMonitor.interval }} }]
+{{- end }}

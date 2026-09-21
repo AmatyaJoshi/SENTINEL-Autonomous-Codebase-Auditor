@@ -1,4 +1,4 @@
-# Sentinel control plane image: API + dashboard + CLI.
+# Onix control plane image: API + dashboard + CLI.
 # The sandbox itself runs in sibling containers via the host Docker socket (mounted read-only in
 # docker-compose); this image never executes audited code.
 
@@ -18,28 +18,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
-COPY sentinel/__init__.py sentinel/__init__.py
+COPY onix/__init__.py onix/__init__.py
 RUN uv sync --frozen --no-dev --extra postgres --no-install-project
 
 # ---- stage 3: runtime -----------------------------------------------------------------------
 FROM python:3.12-slim AS runtime
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    SENTINEL_WORK_DIR=/data SENTINEL_API_HOST=0.0.0.0 SENTINEL_LOG_JSON=1
+    ONIX_WORK_DIR=/data ONIX_API_HOST=0.0.0.0 ONIX_LOG_JSON=1
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd -g 10002 sentinel && useradd -m -u 10002 -g sentinel sentinel
+    && groupadd -g 10002 onix && useradd -m -u 10002 -g onix onix
 WORKDIR /app
 COPY --from=deps /app/.venv /app/.venv
-COPY --chown=sentinel:sentinel sentinel/ sentinel/
-COPY --chown=sentinel:sentinel bench/ bench/
-COPY --chown=sentinel:sentinel training/ training/
-COPY --chown=sentinel:sentinel pyproject.toml README.md SPEC.md ./
-COPY --from=dashboard --chown=sentinel:sentinel /app/dashboard/dist dashboard/dist
-RUN /app/.venv/bin/python -c "import sentinel" && mkdir -p /data && chown sentinel:sentinel /data
-USER sentinel
+COPY --chown=onix:onix onix/ onix/
+COPY --chown=onix:onix bench/ bench/
+COPY --chown=onix:onix training/ training/
+COPY --chown=onix:onix pyproject.toml README.md SPEC.md ./
+COPY --from=dashboard --chown=onix:onix /app/dashboard/dist dashboard/dist
+RUN /app/.venv/bin/python -c "import onix" && mkdir -p /data && chown onix:onix /data
+USER onix
 VOLUME ["/data"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8000/health || exit 1
-ENTRYPOINT ["python", "-m", "sentinel.cli"]
+ENTRYPOINT ["python", "-m", "onix.cli"]
 CMD ["serve"]

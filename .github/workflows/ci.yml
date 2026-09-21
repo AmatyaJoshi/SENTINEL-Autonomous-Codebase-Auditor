@@ -37,11 +37,11 @@ jobs:
         run: uv run pytest -o addopts="" -q --timeout=600 -p no:cacheprovider
       - name: cli smoke + migrations on a fresh database
         env:
-          SENTINEL_DATABASE_URL: sqlite:///${{ runner.temp }}/ci.sqlite
+          ONIX_DATABASE_URL: sqlite:///${{ runner.temp }}/ci.sqlite
         run: |
-          uv run sentinel --help
-          uv run sentinel db upgrade
-          uv run sentinel db current
+          uv run onix --help
+          uv run onix db upgrade
+          uv run onix db current
 
   deploy-manifests:
     # Only the chart and compose file matter here; skipped entirely for unrelated changes.
@@ -61,9 +61,9 @@ jobs:
         if: steps.changes.outputs.deploy == 'true'
         with:
           version: v3.16.2
-      - run: helm lint deploy/helm/sentinel
+      - run: helm lint deploy/helm/onix
         if: steps.changes.outputs.deploy == 'true'
-      - run: helm template sentinel deploy/helm/sentinel >/dev/null
+      - run: helm template onix deploy/helm/onix >/dev/null
         if: steps.changes.outputs.deploy == 'true'
       - run: docker compose config -q
         if: steps.changes.outputs.deploy == 'true'
@@ -99,10 +99,10 @@ jobs:
         with:
           context: .
           push: false
-          tags: sentinel:ci
+          tags: onix:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: build sandbox base images
         run: |
-          docker build -f sentinel/sandbox/images/Dockerfile.python -t sentinel-base-python:3.12 sentinel/sandbox/images
-          docker build -f sentinel/sandbox/images/Dockerfile.node -t sentinel-base-node:20 sentinel/sandbox/images
+          docker build -f onix/sandbox/images/Dockerfile.python -t onix-base-python:3.12 onix/sandbox/images
+          docker build -f onix/sandbox/images/Dockerfile.node -t onix-base-node:20 onix/sandbox/images

@@ -161,7 +161,7 @@ export default function RunDetail() {
                   ["md", "MD", Download],
                 ] as const
               ).map(([fmt, label, Icon]) => (
-                <a key={fmt} href={id ? api.reportUrl(id, fmt) : "#"} download={`sentinel-${id}.${fmt}`} target="_blank" rel="noreferrer" className="btn-ghost rounded-none !py-1.5 !px-2.5 text-xs border-r last:border-r-0 border-slate-200 dark:border-white/10" title={`Download report.${fmt}`} aria-disabled={!run}>
+                <a key={fmt} href={id ? api.reportUrl(id, fmt) : "#"} download={`onix-${id}.${fmt}`} target="_blank" rel="noreferrer" className="btn-ghost rounded-none !py-1.5 !px-2.5 text-xs border-r last:border-r-0 border-slate-200 dark:border-white/10" title={`Download report.${fmt}`} aria-disabled={!run}>
                   <Icon className="h-3.5 w-3.5" /> {label}
                 </a>
               ))}
